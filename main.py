@@ -38,6 +38,10 @@ class JobsCreate(BaseModel):
     source_paths: list["JobSource"]
 
 
+class EditedTranslationCreate(BaseModel):
+    edited_translation: str = Field(min_length=1)
+
+
 class JobSource(BaseModel):
     type: Literal["image", "text"]
     source_path: str = Field(min_length=1)
@@ -118,3 +122,29 @@ def add_jobs(
     _enqueue_jobs(jobs)
     session.refresh(project)
     return serialize_project(project)
+
+
+@app.put("/jobs/{job_id}/edited-translation")
+def add_user_edited_translation(
+    job_id: UUID,
+    payload: EditedTranslationCreate,
+    session: Session = Depends(get_session),
+):
+    job = session.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.result is None:
+        raise HTTPException(status_code=409, detail="Job result not available yet")
+
+    job.result = {
+        **job.result,
+        "edited_translation": payload.edited_translation,
+    }
+    session.commit()
+    session.refresh(job)
+    return {
+        "id": job.id,
+        "source_paths": job.source_paths,
+        "result": job.result,
+    }
