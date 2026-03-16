@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -18,6 +19,13 @@ def lifespan(_: FastAPI) -> Iterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ProjectCreate(BaseModel):
