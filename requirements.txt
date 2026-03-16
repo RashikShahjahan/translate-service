@@ -2,7 +2,6 @@ google-genai
 python-dotenv
 mlx
 mlx-lm
-redis
 sqlalchemy
 celery
 uvicorn

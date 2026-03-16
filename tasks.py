@@ -12,9 +12,10 @@ from mlx_lm import generate, load
 
 load_dotenv()
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"{REDIS_URL}/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"{REDIS_URL}/1")
+DEFAULT_CELERY_BROKER_URL = "sqla+sqlite:///celery-broker.db"
+DEFAULT_CELERY_RESULT_BACKEND = "db+sqlite:///celery-results.db"
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", DEFAULT_CELERY_BROKER_URL)
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", DEFAULT_CELERY_RESULT_BACKEND)
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 DEFAULT_TRANSLATION_MODEL = "mlx-community/tiny-aya-fire-4bit"
 SYSTEM_PROMPT = (

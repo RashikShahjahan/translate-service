@@ -12,7 +12,6 @@ dependencies = [
     "mlx-lm>=0.30.7",
     "numpy>=2.4.2",
     "python-dotenv>=1.1.1",
-    "redis>=6.4.0",
     "sqlalchemy>=2.0.48",
     "torch>=2.10.0",
     "uvicorn>=0.38.0",
