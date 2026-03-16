@@ -1,7 +1,10 @@
 from collections.abc import Iterator
+from uuid import UUID
+from uuid import uuid4
 
 from sqlalchemy import ForeignKey
 from sqlalchemy import JSON
+from sqlalchemy import Uuid
 from sqlalchemy import create_engine
 from sqlalchemy import inspect
 from sqlalchemy import text
@@ -23,7 +26,7 @@ class Base(DeclarativeBase):
 class Project(Base):
     __tablename__ = "project"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column()
     jobs: Mapped[list["Job"]] = relationship(
         back_populates="project",
@@ -34,10 +37,10 @@ class Project(Base):
 class Job(Base):
     __tablename__ = "job"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     source_paths: Mapped[dict[str, str]] = mapped_column(JSON)
     result: Mapped[dict[str, str | None] | None] = mapped_column(JSON, nullable=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
+    project_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("project.id"))
     project: Mapped[Project] = relationship(back_populates="jobs")
 
 

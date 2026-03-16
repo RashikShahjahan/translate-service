@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +36,10 @@ class ProjectCreate(BaseModel):
 
 class JobsCreate(BaseModel):
     source_paths: list["JobSource"]
+
+
+class EditedTranslationCreate(BaseModel):
+    edited_translation: str = Field(min_length=1)
 
 
 class JobSource(BaseModel):
@@ -93,7 +98,7 @@ def fetch_projects(
 
 
 @app.get("/projects/{project_id}")
-def fetch_project_by_id(project_id: int, session: Session = Depends(get_session)):
+def fetch_project_by_id(project_id: UUID, session: Session = Depends(get_session)):
     project = session.get(Project, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -103,7 +108,7 @@ def fetch_project_by_id(project_id: int, session: Session = Depends(get_session)
 
 @app.put("/projects/{project_id}")
 def add_jobs(
-    project_id: int,
+    project_id: UUID,
     payload: JobsCreate,
     session: Session = Depends(get_session),
 ):
@@ -117,3 +122,29 @@ def add_jobs(
     _enqueue_jobs(jobs)
     session.refresh(project)
     return serialize_project(project)
+
+
+@app.put("/jobs/{job_id}/edited-translation")
+def add_user_edited_translation(
+    job_id: UUID,
+    payload: EditedTranslationCreate,
+    session: Session = Depends(get_session),
+):
+    job = session.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.result is None:
+        raise HTTPException(status_code=409, detail="Job result not available yet")
+
+    job.result = {
+        **job.result,
+        "edited_translation": payload.edited_translation,
+    }
+    session.commit()
+    session.refresh(job)
+    return {
+        "id": job.id,
+        "source_paths": job.source_paths,
+        "result": job.result,
+    }
