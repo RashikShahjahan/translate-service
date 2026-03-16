@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from uuid import UUID
 
 from celery import Celery
 from dotenv import load_dotenv
@@ -86,7 +87,7 @@ def _translate_text(text: str) -> str:
     ).strip()
 
 
-def _store_job_result(job_id: int, source_text: str, translated_text: str | None) -> None:
+def _store_job_result(job_id: UUID, source_text: str, translated_text: str | None) -> None:
     with SessionLocal() as session:
         job = session.get(Job, job_id)
         if job is None:
@@ -100,7 +101,7 @@ def _store_job_result(job_id: int, source_text: str, translated_text: str | None
 
 
 @app.task
-def translate(job_id: int, source_path: str | None = None, text: str | None = None):
+def translate(job_id: UUID, source_path: str | None = None, text: str | None = None):
     source_text = text.strip() if text else _load_text(source_path or "")
     translated_text = _translate_text(source_text)
     _store_job_result(job_id, source_text, translated_text)
@@ -108,7 +109,7 @@ def translate(job_id: int, source_path: str | None = None, text: str | None = No
 
 
 @app.task
-def extract_text(job_id: int, source_path: str):
+def extract_text(job_id: UUID, source_path: str):
     source_text = _extract_text_from_image(source_path)
     _store_job_result(job_id, source_text, None)
     translate.delay(job_id=job_id, text=source_text)

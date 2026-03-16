@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -93,7 +94,7 @@ def fetch_projects(
 
 
 @app.get("/projects/{project_id}")
-def fetch_project_by_id(project_id: int, session: Session = Depends(get_session)):
+def fetch_project_by_id(project_id: UUID, session: Session = Depends(get_session)):
     project = session.get(Project, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -103,7 +104,7 @@ def fetch_project_by_id(project_id: int, session: Session = Depends(get_session)
 
 @app.put("/projects/{project_id}")
 def add_jobs(
-    project_id: int,
+    project_id: UUID,
     payload: JobsCreate,
     session: Session = Depends(get_session),
 ):
