@@ -16,12 +16,9 @@ DEFAULT_CELERY_BROKER_URL = "sqla+sqlite:///celery-broker.db"
 DEFAULT_CELERY_RESULT_BACKEND = "db+sqlite:///celery-results.db"
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", DEFAULT_CELERY_BROKER_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", DEFAULT_CELERY_RESULT_BACKEND)
-DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-DEFAULT_TRANSLATION_MODEL = "mlx-community/translategemma-12b-it-4bit"
-SYSTEM_PROMPT = (
-    "You are a Bengali to English translation assistant. "
-    "Respond only with the translated text."
-)
+OCR_MODEL =  os.getenv("OCR_MODEL",  "gemini-3.1-flash-lite-preview")
+TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "mlx-community/translategemma-12b-it-4bit")
+
 
 app = Celery(
     broker=CELERY_BROKER_URL,
@@ -42,7 +39,6 @@ def _extract_text_from_image(source_path: str) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip() or DEFAULT_GEMINI_MODEL
     image_path = Path(source_path)
     image_bytes = image_path.read_bytes()
     mime_type = f"image/{image_path.suffix.lower().lstrip('.') or 'jpeg'}"
@@ -53,7 +49,7 @@ def _extract_text_from_image(source_path: str) -> str:
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model=model,
+        model=OCR_MODEL,
         contents=[
             types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
             prompt,
@@ -68,10 +64,8 @@ def _extract_text_from_image(source_path: str) -> str:
 
 def _translate_text(text: str) -> str:
     source_text = text.strip()
-    model, tokenizer = load(DEFAULT_TRANSLATION_MODEL)
-    #user_prompt = f"Translate the following Bengali text into English:\n{source_text}"
+    model, tokenizer = load(TRANSLATION_MODEL)
     messages = [
-        #{"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content":           [{
               "type": "text",
               "source_lang_code": "bn",

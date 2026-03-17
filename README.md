@@ -29,7 +29,8 @@ Optional environment variables:
 ```env
 CELERY_BROKER_URL=sqla+sqlite:///celery-broker.db
 CELERY_RESULT_BACKEND=db+sqlite:///celery-results.db
-GEMINI_MODEL=gemini-3.1-flash-lite-preview
+OCR_MODEL=gemini-3.1-flash-lite-preview
+TRANSLATION_MODEL=mlx-community/translategemma-12b-it-4bit
 APP_HOST=127.0.0.1
 APP_PORT=8000
 ```
