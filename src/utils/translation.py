@@ -10,6 +10,8 @@ TRANSLATION_MODEL = os.getenv(
     "TRANSLATION_MODEL",
     "mlx-community/translategemma-12b-it-4bit",
 )
+_MODEL = None
+_TOKENIZER = None
 
 
 def load_text(source_path: str) -> str:
@@ -21,7 +23,9 @@ def load_text(source_path: str) -> str:
 
 def translate_text(text: str) -> str:
     source_text = text.strip()
-    model, tokenizer = load(TRANSLATION_MODEL)
+    global _MODEL, _TOKENIZER
+    if _MODEL is None or _TOKENIZER is None:
+        _MODEL, _TOKENIZER = load(TRANSLATION_MODEL)
     messages = [
         {
             "role": "user",
@@ -35,10 +39,10 @@ def translate_text(text: str) -> str:
             ],
         },
     ]
-    prompt = tokenizer.apply_chat_template(messages)
+    prompt = _TOKENIZER.apply_chat_template(messages)
     return generate(
-        model,
-        tokenizer,
+        _MODEL,
+        _TOKENIZER,
         prompt=prompt,
         max_tokens=2048,
         verbose=False,
