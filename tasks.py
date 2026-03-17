@@ -17,7 +17,7 @@ DEFAULT_CELERY_RESULT_BACKEND = "db+sqlite:///celery-results.db"
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", DEFAULT_CELERY_BROKER_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", DEFAULT_CELERY_RESULT_BACKEND)
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-DEFAULT_TRANSLATION_MODEL = "mlx-community/tiny-aya-fire-4bit"
+DEFAULT_TRANSLATION_MODEL = "mlx-community/translategemma-12b-it-4bit"
 SYSTEM_PROMPT = (
     "You are a Bengali to English translation assistant. "
     "Respond only with the translated text."
@@ -67,23 +67,24 @@ def _extract_text_from_image(source_path: str) -> str:
 
 
 def _translate_text(text: str) -> str:
-
     source_text = text.strip()
-    if not source_text:
-        raise ValueError("No Bengali text was provided.")
-
     model, tokenizer = load(DEFAULT_TRANSLATION_MODEL)
-    user_prompt = f"Translate the following Bengali text into English:\n{source_text}"
+    #user_prompt = f"Translate the following Bengali text into English:\n{source_text}"
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
+        #{"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content":           [{
+              "type": "text",
+              "source_lang_code": "bn",
+              "target_lang_code": "en",
+              "text": source_text
+          }]},
     ]
-    prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+    prompt = tokenizer.apply_chat_template(messages)
     return generate(
         model,
         tokenizer,
         prompt=prompt,
-        max_tokens=4096,
+        max_tokens=2048,
         verbose=False,
     ).strip()
 
@@ -91,8 +92,6 @@ def _translate_text(text: str) -> str:
 def _store_job_result(job_id: UUID, source_text: str, translated_text: str | None) -> None:
     with SessionLocal() as session:
         job = session.get(Job, job_id)
-        if job is None:
-            raise ValueError(f"Job {job_id} not found.")
 
         job.result = {
             "source_text": source_text,
