@@ -1,5 +1,4 @@
 from collections.abc import Iterator
-from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
@@ -39,13 +38,6 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "jobs": [job.to_dict() for job in self.jobs],
-        }
 
 
 class Job(Base):
@@ -88,15 +80,6 @@ class Job(Base):
         self.result = {
             "source_text": source_text,
             "translated_text": translated_text,
-        }
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "status": self.status,
-            "error": self.error,
-            "source_paths": self.source_paths,
-            "result": self.result,
         }
 
 
