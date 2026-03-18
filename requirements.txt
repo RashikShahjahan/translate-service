@@ -1,8 +1,0 @@
-google-genai
-huey
-python-dotenv
-mlx
-mlx-lm
-peewee
-sqlalchemy
-uvicorn
