@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 from pydantic import BaseModel, Field, StringConstraints
-from utils.database import Job,Project,get_session, load_project
+from utils.database import Job, Project, get_session, load_job, load_project
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ def require_project(project_id: UUID, session: Session = Depends(get_session)) -
 
 
 def require_job(job_id: UUID, session: Session = Depends(get_session)) -> Job:
-    job = session.get(Job, job_id)
+    job = load_job(session, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job

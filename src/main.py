@@ -3,7 +3,12 @@ from collections.abc import AsyncIterator
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from utils.database import Job, Project, get_session, initialize_database, list_projects
+from utils.database import add_project_jobs
+from utils.database import create_project as create_project_record
+from utils.database import get_session
+from utils.database import initialize_database
+from utils.database import list_projects
+from utils.database import save_job_edited_translation
 from utils.schema import ProjectCreate
 from utils.schema import EditedTranslationCreate
 from utils.schema import JobDependency
@@ -32,14 +37,12 @@ app.add_middleware(
 
 @app.post("/projects", response_model=ProjectResponse)
 def create_project(payload: ProjectCreate, session: Session = Depends(get_session)) -> ProjectResponse:
-    jobs = [Job(source_paths=source.to_record()) for source in payload.source_paths]
-    project = Project(
+    project = create_project_record(
+        session,
         name=payload.name,
-        jobs=jobs,
+        source_paths=[source.to_record() for source in payload.source_paths],
     )
-    session.add(project)
-    session.commit()
-    for job in jobs:
+    for job in project.jobs:
         enqueue_job(job.id)
     return ProjectResponse.from_model(project)
 
@@ -69,9 +72,7 @@ def add_jobs(
     payload: JobsCreate,
     session: Session = Depends(get_session),
 ) -> ProjectResponse:
-    jobs = [Job(source_paths=source.to_record()) for source in payload.source_paths]
-    project.jobs.extend(jobs)
-    session.commit()
+    jobs = add_project_jobs(session, project, [source.to_record() for source in payload.source_paths])
     for job in jobs:
         enqueue_job(job.id)
     return ProjectResponse.from_model(project)
@@ -83,12 +84,9 @@ def add_user_edited_translation(
     payload: EditedTranslationCreate,
     session: Session = Depends(get_session),
 ) -> JobResponse:
-    if job.result is None:
-        raise HTTPException(status_code=409, detail="Job result not available yet")
+    try:
+        updated_job = save_job_edited_translation(session, job, payload.edited_translation)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    job.result = {
-        **job.result,
-        "edited_translation": payload.edited_translation,
-    }
-    session.commit()
-    return JobResponse.from_model(job)
+    return JobResponse.from_model(updated_job)

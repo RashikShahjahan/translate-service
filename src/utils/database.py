@@ -93,9 +93,40 @@ def list_projects(session: Session, offset: int = 0, limit: int = 100) -> list[P
     return list(session.scalars(statement))
 
 
+def load_job(session: Session, job_id: UUID) -> Job | None:
+    return session.get(Job, job_id)
+
+
 def load_project(session: Session, project_id: UUID) -> Project | None:
     statement = select(Project).options(selectinload(Project.jobs)).where(Project.id == project_id)
     return session.scalar(statement)
+
+
+def create_project(session: Session, name: str, source_paths: list[dict[str, str]]) -> Project:
+    jobs = [Job(source_paths=source_path) for source_path in source_paths]
+    project = Project(name=name, jobs=jobs)
+    session.add(project)
+    session.commit()
+    return project
+
+
+def add_project_jobs(session: Session, project: Project, source_paths: list[dict[str, str]]) -> list[Job]:
+    jobs = [Job(source_paths=source_path) for source_path in source_paths]
+    project.jobs.extend(jobs)
+    session.commit()
+    return jobs
+
+
+def save_job_edited_translation(session: Session, job: Job, edited_translation: str) -> Job:
+    if job.result is None:
+        raise ValueError("Job result not available yet")
+
+    job.result = {
+        **job.result,
+        "edited_translation": edited_translation,
+    }
+    session.commit()
+    return job
 
 
 def ensure_schema() -> None:
