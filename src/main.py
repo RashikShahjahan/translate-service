@@ -45,6 +45,14 @@ class JobSource(BaseModel):
     source_path: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
+def project_with_job_ids(project: Project) -> dict[str, object]:
+    return {
+        "id": project.id,
+        "name": project.name,
+        "jobs": [job.id for job in project.jobs],
+    }
+
+
 def require_project(project_id: UUID, session: Session = Depends(get_session)) -> Project:
     project = load_project(session, project_id)
     if project is None:
@@ -74,7 +82,7 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_sessio
     session.commit()
     for job in jobs:
         enqueue_job(job.id)
-    return project.to_dict()
+    return project_with_job_ids(project)
 
 
 @app.get("/projects")
@@ -83,12 +91,12 @@ def fetch_projects(
     limit: int = 100,
     session: Session = Depends(get_session),
 ):
-    return [project.to_dict() for project in list_projects(session, offset=offset, limit=limit)]
+    return [project_with_job_ids(project) for project in list_projects(session, offset=offset, limit=limit)]
 
 
 @app.get("/projects/{project_id}")
 def fetch_project_by_id(project: ProjectDependency):
-    return project.to_dict()
+    return project_with_job_ids(project)
 
 
 @app.get("/jobs/{job_id}")
@@ -107,7 +115,7 @@ def add_jobs(
     session.commit()
     for job in jobs:
         enqueue_job(job.id)
-    return project.to_dict()
+    return project_with_job_ids(project)
 
 
 @app.put("/jobs/{job_id}/edited-translation")
