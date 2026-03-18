@@ -91,6 +91,11 @@ def fetch_project_by_id(project: ProjectDependency):
     return project.to_dict()
 
 
+@app.get("/jobs/{job_id}")
+def fetch_job_by_id(job: JobDependency):
+    return job.to_dict()
+
+
 @app.put("/projects/{project_id}")
 def add_jobs(
     project: ProjectDependency,
