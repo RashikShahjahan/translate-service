@@ -3,13 +3,10 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from typing import Literal
 from uuid import UUID
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
-
 from utils.database import Job, Project, get_session, initialize_database, list_projects, load_project
 from worker import enqueue_job
 

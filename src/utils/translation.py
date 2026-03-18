@@ -26,6 +26,7 @@ def translate_text(text: str) -> str:
     global _MODEL, _TOKENIZER
     if _MODEL is None or _TOKENIZER is None:
         _MODEL, _TOKENIZER = load(TRANSLATION_MODEL)
+        _TOKENIZER.add_eos_token("<end_of_turn>")
     messages = [
         {
             "role": "user",
@@ -39,7 +40,7 @@ def translate_text(text: str) -> str:
             ],
         },
     ]
-    prompt = _TOKENIZER.apply_chat_template(messages)
+    prompt = _TOKENIZER.apply_chat_template(messages, add_generation_prompt=True)
     return generate(
         _MODEL,
         _TOKENIZER,
