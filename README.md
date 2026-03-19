@@ -27,8 +27,8 @@ GEMINI_API_KEY=your_api_key_here
 Optional environment variables:
 
 ```env
-OCR_MODEL=gemini-3.1-flash-lite-preview
-TRANSLATION_MODEL=mlx-community/translategemma-12b-it-4bit
+OCR_MODEL=gemini-3.1-flash-lite-preview # Only gemini supported
+TRANSLATION_MODEL=mlx-community/translategemma-12b-it-4bit # Only trnaslate gemma models supported
 APP_HOST=127.0.0.1
 APP_PORT=8000
 ```
@@ -73,7 +73,8 @@ Once the server is running, open:
 - `http://127.0.0.1:8000/redoc`
 
 ## Todos
-Add english to bengali
-Add options for using API for translation and local model for ocr
+Add chunking
 Batch inference
 Scheduling
+options for using API for translation and local model for ocr
+english to bengali
