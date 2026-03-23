@@ -73,8 +73,8 @@ Once the server is running, open:
 - `http://127.0.0.1:8000/redoc`
 
 ## Todos
-Add chunking
 Batch inference
 Scheduling
+Add chunking
 options for using API for translation and local model for ocr
 english to bengali

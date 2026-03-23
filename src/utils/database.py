@@ -1,7 +1,9 @@
 from collections.abc import Iterator
+from datetime import datetime
 from uuid import UUID
 from uuid import uuid4
 
+from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import JSON
 from sqlalchemy import Uuid
@@ -29,27 +31,28 @@ class Base(DeclarativeBase):
     pass
 
 
-class Project(Base):
-    __tablename__ = "project"
+class Folder(Base):
+    __tablename__ = "folder"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column()
-    jobs: Mapped[list["Job"]] = relationship(
-        back_populates="project",
+    files: Mapped[list["File"]] = relationship(
+        back_populates="folder",
         cascade="all, delete-orphan",
     )
 
 
-class Job(Base):
-    __tablename__ = "job"
+class File(Base):
+    __tablename__ = "file"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     source_paths: Mapped[dict[str, str]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     status: Mapped[str] = mapped_column(String, default="queued")
     error: Mapped[str | None] = mapped_column(nullable=True)
     result: Mapped[dict[str, str | None] | None] = mapped_column(JSON, nullable=True)
-    project_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("project.id"))
-    project: Mapped[Project] = relationship(back_populates="jobs")
+    folder_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("folder.id"))
+    folder: Mapped[Folder] = relationship(back_populates="files")
 
     @property
     def source_type(self) -> str:
@@ -88,67 +91,84 @@ def initialize_database() -> None:
     ensure_schema()
 
 
-def list_projects(session: Session, offset: int = 0, limit: int = 100) -> list[Project]:
-    statement = select(Project).options(selectinload(Project.jobs)).offset(offset).limit(limit)
+def list_folders(session: Session, offset: int = 0, limit: int = 100) -> list[Folder]:
+    statement = select(Folder).options(selectinload(Folder.files)).offset(offset).limit(limit)
     return list(session.scalars(statement))
 
 
-def load_job(session: Session, job_id: UUID) -> Job | None:
-    return session.get(Job, job_id)
+def load_file(session: Session, file_id: UUID) -> File | None:
+    return session.get(File, file_id)
 
 
-def load_project(session: Session, project_id: UUID) -> Project | None:
-    statement = select(Project).options(selectinload(Project.jobs)).where(Project.id == project_id)
+def load_queued_files(session: Session, limit: int = 1) -> File | list[File] | None:
+    statement = (
+        select(File)
+        .where(File.status == "queued")
+        .order_by(File.created_at.asc(), text("rowid"))
+        .limit(limit)
+    )
+    if limit == 1:
+        return session.scalar(statement)
+    return list(session.scalars(statement))
+
+
+def load_folder(session: Session, folder_id: UUID) -> Folder | None:
+    statement = select(Folder).options(selectinload(Folder.files)).where(Folder.id == folder_id)
     return session.scalar(statement)
 
 
-def create_project(session: Session, name: str, source_paths: list[dict[str, str]]) -> Project:
-    jobs = [Job(source_paths=source_path) for source_path in source_paths]
-    project = Project(name=name, jobs=jobs)
-    session.add(project)
+def create_folder(session: Session, name: str, source_paths: list[dict[str, str]]) -> Folder:
+    files = [File(source_paths=source_path) for source_path in source_paths]
+    folder = Folder(name=name, files=files)
+    session.add(folder)
     session.commit()
-    return project
+    return folder
 
 
-def add_project_jobs(session: Session, project: Project, source_paths: list[dict[str, str]]) -> list[Job]:
-    jobs = [Job(source_paths=source_path) for source_path in source_paths]
-    project.jobs.extend(jobs)
+def add_folder_files(session: Session, folder: Folder, source_paths: list[dict[str, str]]) -> list[File]:
+    files = [File(source_paths=source_path) for source_path in source_paths]
+    folder.files.extend(files)
     session.commit()
-    return jobs
+    return files
 
 
-def save_job_edited_translation(session: Session, job: Job, edited_translation: str) -> Job:
-    if job.result is None:
-        raise ValueError("Job result not available yet")
+def save_file_edited_translation(session: Session, file: File, edited_translation: str) -> File:
+    if file.result is None:
+        raise ValueError("File result not available yet")
 
-    job.result = {
-        **job.result,
+    file.result = {
+        **file.result,
         "edited_translation": edited_translation,
     }
     session.commit()
-    return job
+    return file
 
 
 def ensure_schema() -> None:
     inspector = inspect(engine)
-    if "job" not in inspector.get_table_names():
+    if "file" not in inspector.get_table_names():
         return
 
-    columns = {column["name"] for column in inspector.get_columns("job")}
+    columns = {column["name"] for column in inspector.get_columns("file")}
     with engine.begin() as connection:
+        if "created_at" not in columns:
+            connection.execute(
+                text("ALTER TABLE file ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL")
+            )
+
         if "status" not in columns:
-            connection.execute(text("ALTER TABLE job ADD COLUMN status VARCHAR DEFAULT 'queued' NOT NULL"))
-            connection.execute(text("UPDATE job SET status = CASE WHEN result IS NULL THEN 'queued' ELSE 'done' END"))
+            connection.execute(text("ALTER TABLE file ADD COLUMN status VARCHAR DEFAULT 'queued' NOT NULL"))
+            connection.execute(text("UPDATE file SET status = CASE WHEN result IS NULL THEN 'queued' ELSE 'done' END"))
 
         if "error" not in columns:
-            connection.execute(text("ALTER TABLE job ADD COLUMN error VARCHAR"))
+            connection.execute(text("ALTER TABLE file ADD COLUMN error VARCHAR"))
 
         if "result" not in columns:
-            connection.execute(text("ALTER TABLE job ADD COLUMN result JSON"))
+            connection.execute(text("ALTER TABLE file ADD COLUMN result JSON"))
 
         if "result_url" in columns:
             connection.execute(
-                text("UPDATE job SET result = result_url WHERE result IS NULL AND result_url IS NOT NULL")
+                text("UPDATE file SET result = result_url WHERE result IS NULL AND result_url IS NOT NULL")
             )
 
 
