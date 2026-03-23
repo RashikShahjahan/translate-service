@@ -3,20 +3,19 @@ from collections.abc import AsyncIterator
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from utils.database import add_project_jobs
-from utils.database import create_project as create_project_record
+from utils.database import add_folder_files
+from utils.database import create_folder as create_folder_record
 from utils.database import get_session
 from utils.database import initialize_database
-from utils.database import list_projects
-from utils.database import save_job_edited_translation
-from utils.schema import ProjectCreate
+from utils.database import list_folders
+from utils.database import save_file_edited_translation
+from utils.schema import FolderCreate
 from utils.schema import EditedTranslationCreate
-from utils.schema import JobDependency
-from utils.schema import ProjectDependency
-from utils.schema import ProjectResponse
-from utils.schema import JobsCreate
-from utils.schema import JobResponse
-from worker import enqueue_job
+from utils.schema import FileDependency
+from utils.schema import FolderDependency
+from utils.schema import FolderResponse
+from utils.schema import FilesCreate
+from utils.schema import FileResponse
 
 
 @asynccontextmanager
@@ -35,58 +34,54 @@ app.add_middleware(
 )
 
 
-@app.post("/projects", response_model=ProjectResponse)
-def create_project(payload: ProjectCreate, session: Session = Depends(get_session)) -> ProjectResponse:
-    project = create_project_record(
+@app.post("/folders", response_model=FolderResponse)
+def create_folder(payload: FolderCreate, session: Session = Depends(get_session)) -> FolderResponse:
+    folder = create_folder_record(
         session,
         name=payload.name,
         source_paths=[source.to_record() for source in payload.source_paths],
     )
-    for job in project.jobs:
-        enqueue_job(job.id)
-    return ProjectResponse.from_model(project)
+    return FolderResponse.from_model(folder)
 
 
-@app.get("/projects", response_model=list[ProjectResponse])
-def fetch_projects(
+@app.get("/folders", response_model=list[FolderResponse])
+def fetch_folders(
     offset: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),
-) -> list[ProjectResponse]:
-    return [ProjectResponse.from_model(project) for project in list_projects(session, offset=offset, limit=limit)]
+) -> list[FolderResponse]:
+    return [FolderResponse.from_model(folder) for folder in list_folders(session, offset=offset, limit=limit)]
 
 
-@app.get("/projects/{project_id}", response_model=ProjectResponse)
-def fetch_project_by_id(project: ProjectDependency) -> ProjectResponse:
-    return ProjectResponse.from_model(project)
+@app.get("/folders/{folder_id}", response_model=FolderResponse)
+def fetch_folder_by_id(folder: FolderDependency) -> FolderResponse:
+    return FolderResponse.from_model(folder)
 
 
-@app.get("/jobs/{job_id}", response_model=JobResponse)
-def fetch_job_by_id(job: JobDependency) -> JobResponse:
-    return JobResponse.from_model(job)
+@app.get("/files/{file_id}", response_model=FileResponse)
+def fetch_file_by_id(file: FileDependency) -> FileResponse:
+    return FileResponse.from_model(file)
 
 
-@app.put("/projects/{project_id}", response_model=ProjectResponse)
-def add_jobs(
-    project: ProjectDependency,
-    payload: JobsCreate,
+@app.put("/folders/{folder_id}", response_model=FolderResponse)
+def add_files(
+    folder: FolderDependency,
+    payload: FilesCreate,
     session: Session = Depends(get_session),
-) -> ProjectResponse:
-    jobs = add_project_jobs(session, project, [source.to_record() for source in payload.source_paths])
-    for job in jobs:
-        enqueue_job(job.id)
-    return ProjectResponse.from_model(project)
+) -> FolderResponse:
+    add_folder_files(session, folder, [source.to_record() for source in payload.source_paths])
+    return FolderResponse.from_model(folder)
 
 
-@app.put("/jobs/{job_id}/edited-translation", response_model=JobResponse)
+@app.put("/files/{file_id}/edited-translation", response_model=FileResponse)
 def add_user_edited_translation(
-    job: JobDependency,
+    file: FileDependency,
     payload: EditedTranslationCreate,
     session: Session = Depends(get_session),
-) -> JobResponse:
+) -> FileResponse:
     try:
-        updated_job = save_job_edited_translation(session, job, payload.edited_translation)
+        updated_file = save_file_edited_translation(session, file, payload.edited_translation)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    return JobResponse.from_model(updated_job)
+    return FileResponse.from_model(updated_file)
