@@ -1,8 +1,7 @@
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
-from mlx_lm import generate, load
+from mlx_lm import batch_generate, load
 
 load_dotenv()
 
@@ -14,19 +13,19 @@ _MODEL = None
 _TOKENIZER = None
 
 
-def load_text(source_path: str) -> str:
-    text = Path(source_path).read_text(encoding="utf-8").strip()
-    if not text:
-        raise ValueError(f"No text found in {source_path}.")
-    return text
 
-
-def translate_text(text: str) -> str:
-    source_text = text.strip()
+def get_model_and_tokenizer():
     global _MODEL, _TOKENIZER
     if _MODEL is None or _TOKENIZER is None:
-        _MODEL, _TOKENIZER = load(TRANSLATION_MODEL)
+        _MODEL, _TOKENIZER = load(
+            TRANSLATION_MODEL        )
         _TOKENIZER.add_eos_token("<end_of_turn>")
+    return _MODEL, _TOKENIZER
+
+
+def prepare_prompt(text: str) -> str:
+    _, tokenizer = get_model_and_tokenizer()
+    source_text = text.strip()
     messages = [
         {
             "role": "user",
@@ -40,11 +39,21 @@ def translate_text(text: str) -> str:
             ],
         },
     ]
-    prompt = _TOKENIZER.apply_chat_template(messages, add_generation_prompt=True)
-    return generate(
-        _MODEL,
-        _TOKENIZER,
-        prompt=prompt,
+    return tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+
+
+
+def translate_batch(batch: list[str]) -> list[str]:
+    model, tokenizer = get_model_and_tokenizer()
+    prompts = [prepare_prompt(text) for text in batch]
+
+    response = batch_generate(
+        model,
+        tokenizer,
+        prompts=prompts,
         max_tokens=2048,
-        verbose=False,
-    ).strip()
+    )
+
+
+    return response.texts
+

@@ -3,3 +3,7 @@ __pycache__
 .env
 *.db
 huey.db-*
+data/
+translate/
+ocr/
+test-data/
