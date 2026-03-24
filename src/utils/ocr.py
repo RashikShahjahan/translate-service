@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from utils.file_types import detect_image_mime_type
 
 load_dotenv()
 
@@ -17,7 +18,7 @@ def extract_text_from_image(source_path: str) -> str:
 
     image_path = Path(source_path)
     image_bytes = image_path.read_bytes()
-    mime_type = f"image/{image_path.suffix.lower().lstrip('.') or 'jpeg'}"
+    mime_type = detect_image_mime_type(source_path)
     prompt = (
         "Extract the Bengali text from this image. "
         "Respond with only the extracted text with no additional commentary."

@@ -1,87 +1,120 @@
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from utils.database import add_folder_files
-from utils.database import create_folder as create_folder_record
-from utils.database import get_session
-from utils.database import initialize_database
-from utils.database import list_folders
-from utils.database import save_file_edited_translation
-from utils.schema import FolderCreate
-from utils.schema import EditedTranslationCreate
-from utils.schema import FileDependency
-from utils.schema import FolderDependency
-from utils.schema import FolderResponse
-from utils.schema import FilesCreate
-from utils.schema import FileResponse
+import argparse
+from pathlib import Path
+from persistqueue import SQLiteAckQueue
+from persistqueue.sqlackqueue import AckStatus
+from utils.file_types import detect_source_type
+
+def prepare_task(input_path:Path, project_dir:Path):
+    folder_name = input_path.name
+    project_subdir = project_dir / folder_name
+    project_subdir.mkdir(parents=True, exist_ok=True)
+    target_path = input_path.copy_into(project_subdir)
+
+    input_type = detect_source_type(target_path)
+    if input_type == "image":
+        q = SQLiteAckQueue("ocr")
+    else:
+        q = SQLiteAckQueue("translate")
+
+    q.put(target_path)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    initialize_database()
-    yield
+def iter_input_files(input_path: Path):
+    if input_path.is_file():
+        yield input_path
+        return
+
+    if input_path.is_dir():
+        for path in sorted(input_path.rglob("*")):
+            if path.is_file():
+                yield path
+        return
+
+    raise FileNotFoundError(f"Input path does not exist: {input_path}")
 
 
-app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def upsert_project(project_name:str, input_paths:str | list[str]):
+    project_dir = Path(f"data/{project_name}")
+    Path.mkdir(project_dir,parents=True,exist_ok=True)
+
+    if isinstance(input_paths, str):
+        paths = [input_paths]
+    else:
+        paths = input_paths
+
+    for raw_input_path in paths:
+        input_path = Path(raw_input_path)
+        for input_file in iter_input_files(input_path):
+            prepare_task(input_file, project_dir)
+
+ACK_STATUS_LABELS = {
+    AckStatus.inited: "initialized",
+    AckStatus.ready: "queued",
+    AckStatus.unack: "in_progress",
+    AckStatus.acked: "completed",
+    AckStatus.ack_failed: "failed",
+}
 
 
-@app.post("/folders", response_model=FolderResponse)
-def create_folder(payload: FolderCreate, session: Session = Depends(get_session)) -> FolderResponse:
-    folder = create_folder_record(
-        session,
-        name=payload.name,
-        source_paths=[source.to_record() for source in payload.source_paths],
+def get_tasks() -> list[dict]:
+    ocr_q = SQLiteAckQueue("ocr")
+    translate_q = SQLiteAckQueue("translate")
+    tasks: list[dict] = []
+
+    for queue in (ocr_q, translate_q):
+        for item in queue.queue():
+            if str(item["status"]) == AckStatus.acked:
+                continue
+            tasks.append(
+                {
+                    **item,
+                    "status_label": ACK_STATUS_LABELS.get(str(item["status"]), "unknown"),
+                    "queue": queue.name,
+                }
+            )
+
+    return tasks
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Manage translation projects and queued tasks.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    upsert_project_parser = subparsers.add_parser(
+        "add-tasks",
+        help="Add input files to a project queue.",
     )
-    return FolderResponse.from_model(folder)
+    upsert_project_parser.add_argument("project_name", help="Project name under data/.")
+    upsert_project_parser.add_argument(
+        "input",
+        nargs="+",
+        help="One or more input files or directories to enqueue.",
+    )
+
+    subparsers.add_parser(
+        "get-tasks",
+        help="Print queued OCR and translation tasks.",
+    )
+
+    return parser
 
 
-@app.get("/folders", response_model=list[FolderResponse])
-def fetch_folders(
-    offset: int = 0,
-    limit: int = 100,
-    session: Session = Depends(get_session),
-) -> list[FolderResponse]:
-    return [FolderResponse.from_model(folder) for folder in list_folders(session, offset=offset, limit=limit)]
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.command == "add-tasks":
+        upsert_project(args.project_name, args.input)
+        return 0
+
+    if args.command == "get-tasks":
+        for task in get_tasks():
+            print(task)
+        return 0
+
+    parser.error(f"Unknown command: {args.command}")
+    return 2
 
 
-@app.get("/folders/{folder_id}", response_model=FolderResponse)
-def fetch_folder_by_id(folder: FolderDependency) -> FolderResponse:
-    return FolderResponse.from_model(folder)
-
-
-@app.get("/files/{file_id}", response_model=FileResponse)
-def fetch_file_by_id(file: FileDependency) -> FileResponse:
-    return FileResponse.from_model(file)
-
-
-@app.put("/folders/{folder_id}", response_model=FolderResponse)
-def add_files(
-    folder: FolderDependency,
-    payload: FilesCreate,
-    session: Session = Depends(get_session),
-) -> FolderResponse:
-    add_folder_files(session, folder, [source.to_record() for source in payload.source_paths])
-    return FolderResponse.from_model(folder)
-
-
-@app.put("/files/{file_id}/edited-translation", response_model=FileResponse)
-def add_user_edited_translation(
-    file: FileDependency,
-    payload: EditedTranslationCreate,
-    session: Session = Depends(get_session),
-) -> FileResponse:
-    try:
-        updated_file = save_file_edited_translation(session, file, payload.edited_translation)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    return FileResponse.from_model(updated_file)
+if __name__ == "__main__":
+    raise SystemExit(main())
