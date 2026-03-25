@@ -1,8 +1,8 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import LargeBinary, String, Text, create_engine, inspect, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
-from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey, UniqueConstraint
 
 
@@ -21,12 +21,16 @@ class Base(DeclarativeBase):
     pass
 
 
+def utc_now_string() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, server_default=func.current_timestamp())
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     documents: Mapped[list["Document"]] = relationship(back_populates="project")
 
 
@@ -45,13 +49,8 @@ class Document(Base):
     translated_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, server_default=func.current_timestamp())
-    updated_at: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp(),
-    )
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     project: Mapped[Project] = relationship(back_populates="documents")
 
 
@@ -85,6 +84,37 @@ def upsert_project(name: str) -> int:
         return project.id
 
 
+def get_projects() -> list[dict]:
+    with get_session() as session:
+        rows = session.execute(
+            select(
+                Project.id,
+                Project.name,
+                Project.created_at,
+            )
+            .order_by(Project.created_at.asc(), Project.id.asc())
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
+def get_documents(project_name: str) -> list[dict]:
+    with get_session() as session:
+        rows = session.execute(
+            select(
+                Document.id,
+                Document.source_name,
+                Document.source_type,
+                Document.status,
+                Document.created_at,
+                Document.updated_at,
+            )
+            .join(Project, Project.id == Document.project_id)
+            .where(Project.name == project_name)
+            .order_by(Document.source_name.asc(), Document.id.asc())
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
 def upsert_document(
     *,
     project_id: int,
@@ -104,6 +134,7 @@ def upsert_document(
             )
         )
         if document is None:
+            now = utc_now_string()
             document = Document(
                 project_id=project_id,
                 source_name=source_name,
@@ -112,6 +143,8 @@ def upsert_document(
                 source_text=source_text,
                 mime_type=mime_type,
                 status=status,
+                created_at=now,
+                updated_at=now,
             )
             session.add(document)
         else:
@@ -123,7 +156,7 @@ def upsert_document(
             document.translated_text = None
             document.status = status
             document.error_message = None
-            document.updated_at = func.current_timestamp()
+            document.updated_at = utc_now_string()
         session.commit()
 
 
@@ -159,6 +192,7 @@ def lease_document_for_ocr() -> dict | None:
             return None
 
         document.status = STATUS_PROCESSING_OCR
+        document.updated_at = utc_now_string()
         session.commit()
         return {
             "id": document.id,
@@ -176,7 +210,7 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
         document.translated_text = None
         document.status = STATUS_PENDING_TRANSLATION
         document.error_message = None
-        document.updated_at = func.current_timestamp()
+        document.updated_at = utc_now_string()
         session.commit()
 
 
@@ -193,8 +227,10 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
         if not documents:
             return []
 
+        now = utc_now_string()
         for document in documents:
             document.status = STATUS_PROCESSING_TRANSLATION
+            document.updated_at = now
 
         leased = [
             {
@@ -217,7 +253,7 @@ def complete_translation(document_id: int, translated_text: str) -> None:
         document.translated_text = translated_text
         document.status = STATUS_COMPLETED
         document.error_message = None
-        document.updated_at = func.current_timestamp()
+        document.updated_at = utc_now_string()
         session.commit()
 
 
@@ -228,5 +264,5 @@ def fail_document(document_id: int, error_message: str) -> None:
             return
         document.status = STATUS_FAILED
         document.error_message = error_message
-        document.updated_at = func.current_timestamp()
+        document.updated_at = utc_now_string()
         session.commit()
