@@ -7,7 +7,7 @@ from persistqueue import SQLiteAckQueue
 from persistqueue.exceptions import Empty
 
 from utils.ocr import extract_text_from_image
-from utils.translation import translate_batch
+from utils.translation import TARGET_LANG_CODE, translate_batch
 
 TRANSLATION_BATCH_SIZE = 16
 
@@ -34,7 +34,7 @@ def start_translation():
 
     for leased, translated_text in zip(leased_items, results):
         text_path = Path(leased["data"])
-        output_path = text_path.with_name(f"{text_path.stem}_en.txt")
+        output_path = text_path.with_name(f"{text_path.stem}_{TARGET_LANG_CODE}.txt")
         output_path.write_text(translated_text.strip(), encoding="utf-8")
         translate_q.ack(leased)
 

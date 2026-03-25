@@ -9,6 +9,8 @@ TRANSLATION_MODEL = os.getenv(
     "TRANSLATION_MODEL",
     "mlx-community/translategemma-12b-it-4bit",
 )
+SOURCE_LANG_CODE = os.getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
+TARGET_LANG_CODE = os.getenv("TARGET_LANG_CODE", "en").strip() or "en"
 _MODEL = None
 _TOKENIZER = None
 
@@ -32,8 +34,8 @@ def prepare_prompt(text: str) -> str:
             "content": [
                 {
                     "type": "text",
-                    "source_lang_code": "bn",
-                    "target_lang_code": "en",
+                    "source_lang_code": SOURCE_LANG_CODE,
+                    "target_lang_code": TARGET_LANG_CODE,
                     "text": source_text,
                 }
             ],
@@ -56,4 +58,3 @@ def translate_batch(batch: list[str]) -> list[str]:
 
 
     return response.texts
-
