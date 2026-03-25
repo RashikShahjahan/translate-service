@@ -13,8 +13,10 @@ def prepare_task(input_path:Path, project_dir:Path):
     input_type = detect_source_type(target_path)
     if input_type == "image":
         q = SQLiteAckQueue("ocr")
-    else:
+    elif input_type == "text":
         q = SQLiteAckQueue("translate")
+    else:
+        return
 
     q.put(target_path)
 
