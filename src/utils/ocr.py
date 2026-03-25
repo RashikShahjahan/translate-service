@@ -12,13 +12,18 @@ OCR_MODEL = os.getenv("OCR_MODEL", "gemini-3.1-flash-lite-preview")
 
 
 def extract_text_from_image(source_path: str) -> str:
+    image_path = Path(source_path)
+    return extract_text_from_image_bytes(
+        image_path.read_bytes(),
+        detect_image_mime_type(source_path),
+    )
+
+
+def extract_text_from_image_bytes(image_bytes: bytes, mime_type: str) -> str:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    image_path = Path(source_path)
-    image_bytes = image_path.read_bytes()
-    mime_type = detect_image_mime_type(source_path)
     prompt = (
         "Extract the Bengali text from this image. "
         "Respond with only the extracted text with no additional commentary."
@@ -35,5 +40,5 @@ def extract_text_from_image(source_path: str) -> str:
 
     text = (response.text or "").strip()
     if not text:
-        raise ValueError(f"No text extracted from {source_path}.")
+        raise ValueError("No text extracted from image bytes.")
     return text

@@ -11,4 +11,5 @@ dependencies = [
     "google-genai>=1.68.0",
     "mlx-lm>=0.31.1",
     "persist-queue>=1.1.0",
+    "sqlalchemy>=2.0.39",
 ]
