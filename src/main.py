@@ -1,84 +1,56 @@
 import argparse
 from pathlib import Path
-from persistqueue import SQLiteAckQueue
-from persistqueue.sqlackqueue import AckStatus
-from utils.file_types import detect_source_type
 
-def prepare_task(input_path:Path, project_dir:Path):
-    if input_path.is_file() and input_path.suffixes:
-        folder_name = input_path.name.removesuffix("".join(input_path.suffixes))
-    else:
-        folder_name = input_path.name
-    project_subdir = project_dir / folder_name
-    project_subdir.mkdir(parents=True, exist_ok=True)
-    target_path = input_path.copy_into(project_subdir)
+from storage import get_tasks as fetch_tasks
+from storage import upsert_document, upsert_project as ensure_project
+from utils.file_types import detect_mime_type, detect_source_type
 
-    input_type = detect_source_type(target_path)
-    if input_type == "image":
-        q = SQLiteAckQueue("ocr")
-    elif input_type == "text":
-        q = SQLiteAckQueue("translate")
-    else:
+
+def prepare_task(input_path: Path, project_id: int, source_name: str):
+    input_type = detect_source_type(input_path)
+    if input_type not in {"image", "text"}:
         return
 
-    q.put(target_path)
+    upsert_document(
+        project_id=project_id,
+        source_name=source_name,
+        source_type=input_type,
+        source_bytes=input_path.read_bytes(),
+        source_text=input_path.read_text(encoding="utf-8") if input_type == "text" else None,
+        mime_type=detect_mime_type(input_path),
+    )
 
 
 def iter_input_files(input_path: Path):
     if input_path.is_file():
-        yield input_path
+        yield input_path, input_path.name
         return
 
     if input_path.is_dir():
         for path in sorted(input_path.rglob("*")):
             if path.is_file():
-                yield path
+                yield path, str(Path(input_path.name) / path.relative_to(input_path))
         return
 
     raise FileNotFoundError(f"Input path does not exist: {input_path}")
 
 
-def upsert_project(project_name:str, input_paths:str | list[str]):
-    project_dir = Path(f"data/{project_name}")
-    Path.mkdir(project_dir,parents=True,exist_ok=True)
-
+def upsert_project(project_name: str, input_paths: str | list[str]):
     if isinstance(input_paths, str):
         paths = [input_paths]
     else:
         paths = input_paths
 
+    project_id = ensure_project(project_name)
+
     for raw_input_path in paths:
         input_path = Path(raw_input_path)
-        for input_file in iter_input_files(input_path):
-            prepare_task(input_file, project_dir)
-
-ACK_STATUS_LABELS = {
-    AckStatus.inited: "initialized",
-    AckStatus.ready: "queued",
-    AckStatus.unack: "in_progress",
-    AckStatus.acked: "completed",
-    AckStatus.ack_failed: "failed",
-}
+        for input_file, source_name in iter_input_files(input_path):
+            prepare_task(input_file, project_id, source_name)
 
 
 def get_tasks() -> list[dict]:
-    ocr_q = SQLiteAckQueue("ocr")
-    translate_q = SQLiteAckQueue("translate")
-    tasks: list[dict] = []
-
-    for queue in (ocr_q, translate_q):
-        for item in queue.queue():
-            if str(item["status"]) == AckStatus.acked:
-                continue
-            tasks.append(
-                {
-                    **item,
-                    "status_label": ACK_STATUS_LABELS.get(str(item["status"]), "unknown"),
-                    "queue": queue.name,
-                }
-            )
-
-    return tasks
+    return fetch_tasks()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -87,9 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     upsert_project_parser = subparsers.add_parser(
         "add-tasks",
-        help="Add input files to a project queue.",
+        help="Store input files in SQLite and queue them for processing.",
     )
-    upsert_project_parser.add_argument("project_name", help="Project name under data/.")
+    upsert_project_parser.add_argument("project_name", help="Project name stored in SQLite.")
     upsert_project_parser.add_argument(
         "input",
         nargs="+",
