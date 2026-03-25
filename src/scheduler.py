@@ -14,10 +14,9 @@ from utils.ocr import extract_text_from_image_bytes
 from utils.translation import translate_batch
 load_dotenv()
 
-OCR_INTERVAL_SECONDS = 60
-TRANSLATION_RUN_AT = os.getenv("TRANSLATION_RUN_AT", "00:00")
+OCR_INTERVAL_SECONDS = os.getenv("OCR_INTERVAL_SECONDS", "60")
 TRANSLATION_BATCH_SIZE = os.getenv("TRANSLATION_BATCH_SIZE", "4")
-
+TRANSLATION_INTERVAL_SECONDS = os.getenv("TRANSLATION_INTERVAL_SECONDS", "120")
 
 def parse_daily_time(value: str) -> tuple[int, int]:
     hour_text, minute_text = value.split(":", maxsplit=1)
@@ -26,13 +25,6 @@ def parse_daily_time(value: str) -> tuple[int, int]:
     if hour not in range(24) or minute not in range(60):
         raise ValueError
     return hour, minute
-
-
-def parse_positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed < 1:
-        raise ValueError
-    return parsed
 
 
 def start_translation(translation_batch_size: int):
@@ -68,24 +60,15 @@ def start_ocr():
 
 
 if __name__ == "__main__":
-    try:
-        translation_hour, translation_minute = parse_daily_time(TRANSLATION_RUN_AT)
-    except ValueError as exc:
-        raise ValueError(
-            "TRANSLATION_RUN_AT must use 24-hour HH:MM format, for example 00:00 or 23:30."
-        ) from exc
 
-    translation_batch_size = parse_positive_int(TRANSLATION_BATCH_SIZE)
- 
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(start_ocr, "interval", seconds=OCR_INTERVAL_SECONDS)
     scheduler.add_job(
         start_translation,
-        "cron",
-        hour=translation_hour,
-        minute=translation_minute,
-        kwargs={"translation_batch_size": translation_batch_size},
+        "interval",
+        seconds=TRANSLATION_INTERVAL_SECONDS,
+        kwargs={"translation_batch_size": TRANSLATION_BATCH_SIZE},
     )
 
     scheduler.start()
