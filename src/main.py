@@ -5,7 +5,10 @@ from persistqueue.sqlackqueue import AckStatus
 from utils.file_types import detect_source_type
 
 def prepare_task(input_path:Path, project_dir:Path):
-    folder_name = input_path.name
+    if input_path.is_file() and input_path.suffixes:
+        folder_name = input_path.name.removesuffix("".join(input_path.suffixes))
+    else:
+        folder_name = input_path.name
     project_subdir = project_dir / folder_name
     project_subdir.mkdir(parents=True, exist_ok=True)
     target_path = input_path.copy_into(project_subdir)
