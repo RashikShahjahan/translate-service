@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from storage import get_projects as fetch_projects
 from storage import get_tasks as fetch_tasks
 from storage import upsert_document, upsert_project as ensure_project
 from utils.file_types import detect_mime_type, detect_source_type
@@ -53,6 +54,10 @@ def get_tasks() -> list[dict]:
     return fetch_tasks()
 
 
+def get_projects() -> list[dict]:
+    return fetch_projects()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage translation projects and queued tasks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -73,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print queued OCR and translation tasks.",
     )
 
+    subparsers.add_parser(
+        "list-projects",
+        help="Print all stored projects.",
+    )
+
     return parser
 
 
@@ -87,6 +97,11 @@ def main() -> int:
     if args.command == "get-tasks":
         for task in get_tasks():
             print(task)
+        return 0
+
+    if args.command == "list-projects":
+        for project in get_projects():
+            print(project["name"])
         return 0
 
     parser.error(f"Unknown command: {args.command}")

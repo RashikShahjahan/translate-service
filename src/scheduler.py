@@ -14,9 +14,9 @@ from utils.ocr import extract_text_from_image_bytes
 from utils.translation import translate_batch
 load_dotenv()
 
-OCR_INTERVAL_SECONDS = os.getenv("OCR_INTERVAL_SECONDS", "60")
-TRANSLATION_BATCH_SIZE = os.getenv("TRANSLATION_BATCH_SIZE", "4")
-TRANSLATION_INTERVAL_SECONDS = os.getenv("TRANSLATION_INTERVAL_SECONDS", "120")
+OCR_INTERVAL_SECONDS = os.getenv("OCR_INTERVAL_SECONDS", 60)
+TRANSLATION_BATCH_SIZE = os.getenv("TRANSLATION_BATCH_SIZE", 4)
+TRANSLATION_INTERVAL_SECONDS = os.getenv("TRANSLATION_INTERVAL_SECONDS", 60)
 
 def parse_daily_time(value: str) -> tuple[int, int]:
     hour_text, minute_text = value.split(":", maxsplit=1)
