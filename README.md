@@ -10,5 +10,4 @@
 # Notes
 
 - Stress test max batch size
-- Store results
 - Run on entire book
