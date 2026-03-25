@@ -98,6 +98,24 @@ def get_projects() -> list[dict]:
         return [dict(row) for row in rows]
 
 
+def get_documents(project_name: str) -> list[dict]:
+    with get_session() as session:
+        rows = session.execute(
+            select(
+                Document.id,
+                Document.source_name,
+                Document.source_type,
+                Document.status,
+                Document.created_at,
+                Document.updated_at,
+            )
+            .join(Project, Project.id == Document.project_id)
+            .where(Project.name == project_name)
+            .order_by(Document.source_name.asc(), Document.id.asc())
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
 def upsert_document(
     *,
     project_id: int,

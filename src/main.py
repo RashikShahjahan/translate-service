@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from storage import get_documents as fetch_documents
 from storage import get_projects as fetch_projects
 from storage import get_tasks as fetch_tasks
 from storage import upsert_document, upsert_project as ensure_project
@@ -58,6 +59,10 @@ def get_projects() -> list[dict]:
     return fetch_projects()
 
 
+def get_documents(project_name: str) -> list[dict]:
+    return fetch_documents(project_name)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage translation projects and queued tasks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -83,6 +88,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print all stored projects.",
     )
 
+    list_documents_parser = subparsers.add_parser(
+        "list-documents",
+        help="Print all stored documents for a project.",
+    )
+    list_documents_parser.add_argument(
+        "project_name",
+        help="Project name whose documents should be listed.",
+    )
+
     return parser
 
 
@@ -102,6 +116,20 @@ def main() -> int:
     if args.command == "list-projects":
         for project in get_projects():
             print(project["name"])
+        return 0
+
+    if args.command == "list-documents":
+        for document in get_documents(args.project_name):
+            print(
+                {
+                    "id": document["id"],
+                    "source_name": document["source_name"],
+                    "source_type": document["source_type"],
+                    "status": document["status"],
+                    "created_at": document["created_at"],
+                    "updated_at": document["updated_at"],
+                }
+            )
         return 0
 
     parser.error(f"Unknown command: {args.command}")
