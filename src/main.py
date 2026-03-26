@@ -1,10 +1,12 @@
 import argparse
 from pathlib import Path
 
+from storage import get_completed_translations
 from storage import get_documents as fetch_documents
 from storage import get_projects as fetch_projects
 from storage import get_tasks as fetch_tasks
 from storage import upsert_document, upsert_project as ensure_project
+from utils.docx import write_project_docx
 from utils.file_types import detect_mime_type, detect_source_type
 
 
@@ -63,6 +65,16 @@ def get_documents(project_name: str) -> list[dict]:
     return fetch_documents(project_name)
 
 
+def publish_project_docx(project_name: str, output_path: str) -> Path:
+    documents = get_completed_translations(project_name)
+    if not documents:
+        raise ValueError(f"No completed translated documents found for project: {project_name}")
+
+    output = Path(output_path)
+    write_project_docx(documents, output)
+    return output
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage translation projects and queued tasks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -95,6 +107,19 @@ def build_parser() -> argparse.ArgumentParser:
     list_documents_parser.add_argument(
         "project_name",
         help="Project name whose documents should be listed.",
+    )
+
+    publish_docx_parser = subparsers.add_parser(
+        "publish-docx",
+        help="Write completed translated documents for a project to a DOCX file.",
+    )
+    publish_docx_parser.add_argument(
+        "project_name",
+        help="Project name whose translated documents should be published.",
+    )
+    publish_docx_parser.add_argument(
+        "output",
+        help="Output .docx path.",
     )
 
     return parser
@@ -130,6 +155,11 @@ def main() -> int:
                     "updated_at": document["updated_at"],
                 }
             )
+        return 0
+
+    if args.command == "publish-docx":
+        output = publish_project_docx(args.project_name, args.output)
+        print(output)
         return 0
 
     parser.error(f"Unknown command: {args.command}")

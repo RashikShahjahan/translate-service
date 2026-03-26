@@ -6,10 +6,12 @@
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
 - `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per scheduled run. Default: `16`
 
+# CLI
+
+- `python src/main.py publish-docx <project_name> <output.docx>`: Publish completed translated documents for a project into a Word document.
 
 # Todo
 
-- Publish to docx command
 - Failure/retry mechanisms
 - Memory aware processing
 - Stress test max batch size

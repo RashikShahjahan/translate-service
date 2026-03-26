@@ -113,6 +113,23 @@ def get_documents(project_name: str) -> list[dict]:
         return [dict(row) for row in rows]
 
 
+def get_completed_translations(project_name: str) -> list[dict]:
+    with get_session() as session:
+        rows = session.execute(
+            select(
+                Document.id,
+                Document.source_name,
+                Document.translated_text,
+            )
+            .join(Project, Project.id == Document.project_id)
+            .where(Project.name == project_name)
+            .where(Document.status == STATUS_COMPLETED)
+            .where(Document.translated_text.is_not(None))
+            .order_by(Document.source_name.asc(), Document.id.asc())
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
 def upsert_document(
     *,
     project_id: int,
