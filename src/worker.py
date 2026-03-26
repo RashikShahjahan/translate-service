@@ -1,7 +1,6 @@
 import os
 import time
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from storage import (
     complete_ocr,
@@ -12,26 +11,17 @@ from storage import (
 )
 from utils.ocr import extract_text_from_image_bytes
 from utils.translation import translate_batch
+
 load_dotenv()
 
-OCR_INTERVAL_SECONDS = os.getenv("OCR_INTERVAL_SECONDS", 60)
-TRANSLATION_BATCH_SIZE = os.getenv("TRANSLATION_BATCH_SIZE", 4)
-TRANSLATION_INTERVAL_SECONDS = os.getenv("TRANSLATION_INTERVAL_SECONDS", 60)
-
-def parse_daily_time(value: str) -> tuple[int, int]:
-    hour_text, minute_text = value.split(":", maxsplit=1)
-    hour = int(hour_text)
-    minute = int(minute_text)
-    if hour not in range(24) or minute not in range(60):
-        raise ValueError
-    return hour, minute
-
+IDLE_SLEEP_SECONDS = float(os.getenv("IDLE_SLEEP_SECONDS", "2"))
+TRANSLATION_BATCH_SIZE = int(os.getenv("TRANSLATION_BATCH_SIZE", "4"))
 
 def start_translation(translation_batch_size: int):
     leased_items = lease_documents_for_translation(translation_batch_size)
     input_texts = [str(item["input_text"]).strip() for item in leased_items]
     if not input_texts:
-        return
+        return False
 
     try:
         results = translate_batch(input_texts)
@@ -41,12 +31,13 @@ def start_translation(translation_batch_size: int):
         for leased in leased_items:
             fail_document(int(leased["id"]), str(exc))
         raise
+    return True
 
 
 def start_ocr():
     queue_entry = lease_document_for_ocr()
     if queue_entry is None:
-        return
+        return False
 
     try:
         text = extract_text_from_image_bytes(
@@ -57,25 +48,21 @@ def start_ocr():
     except Exception as exc:
         fail_document(int(queue_entry["id"]), str(exc))
         raise
+    return True
+
+
+def process_once(translation_batch_size: int) -> bool:
+    processed_ocr = start_ocr()
+    processed_translation = start_translation(translation_batch_size)
+    return processed_ocr or processed_translation
 
 
 if __name__ == "__main__":
-
-
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(start_ocr, "interval", seconds=OCR_INTERVAL_SECONDS)
-    scheduler.add_job(
-        start_translation,
-        "interval",
-        seconds=TRANSLATION_INTERVAL_SECONDS,
-        kwargs={"translation_batch_size": TRANSLATION_BATCH_SIZE},
-    )
-
-    scheduler.start()
     print("Press Ctrl+{} to exit".format("Break" if os.name == "nt" else "C"))
 
     try:
         while True:
-            time.sleep(2)
+            if not process_once(TRANSLATION_BATCH_SIZE):
+                time.sleep(IDLE_SLEEP_SECONDS)
     except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+        pass

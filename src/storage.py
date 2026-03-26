@@ -49,7 +49,6 @@ class Document(Base):
     translated_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    started_processing_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     updated_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     project: Mapped[Project] = relationship(back_populates="documents")
@@ -67,11 +66,6 @@ def ensure_db() -> None:
     if "source_text" not in columns:
         with engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN source_text TEXT")
-    if "started_processing_at" not in columns:
-        with engine.begin() as conn:
-            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN started_processing_at TEXT")
-
-
 def get_session() -> Session:
     ensure_db()
     return Session(engine)
@@ -109,7 +103,6 @@ def get_documents(project_name: str) -> list[dict]:
                 Document.source_name,
                 Document.source_type,
                 Document.status,
-                Document.started_processing_at,
                 Document.created_at,
                 Document.updated_at,
             )
@@ -148,7 +141,6 @@ def upsert_document(
                 source_text=source_text,
                 mime_type=mime_type,
                 status=status,
-                started_processing_at=None,
                 created_at=now,
                 updated_at=now,
             )
@@ -162,7 +154,6 @@ def upsert_document(
             document.translated_text = None
             document.status = status
             document.error_message = None
-            document.started_processing_at = None
             document.updated_at = utc_now_string()
         session.commit()
 
@@ -177,7 +168,6 @@ def get_tasks() -> list[dict]:
                 Document.source_type,
                 Document.status,
                 Document.error_message,
-                Document.started_processing_at,
                 Document.created_at,
                 Document.updated_at,
             )
@@ -201,7 +191,6 @@ def lease_document_for_ocr() -> dict | None:
 
         now = utc_now_string()
         document.status = STATUS_PROCESSING_OCR
-        document.started_processing_at = now
         document.updated_at = now
         session.commit()
         return {
@@ -220,7 +209,6 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
         document.translated_text = None
         document.status = STATUS_PENDING_TRANSLATION
         document.error_message = None
-        document.started_processing_at = None
         document.updated_at = utc_now_string()
         session.commit()
 
@@ -241,7 +229,6 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
         now = utc_now_string()
         for document in documents:
             document.status = STATUS_PROCESSING_TRANSLATION
-            document.started_processing_at = now
             document.updated_at = now
 
         leased = [
