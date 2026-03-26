@@ -2,7 +2,7 @@ import os
 import time
 
 from dotenv import load_dotenv
-from storage import (
+from utils.storage import (
     complete_ocr,
     complete_translation,
     fail_document,

@@ -1,11 +1,11 @@
 import argparse
 from pathlib import Path
 
-from storage import get_completed_translations
-from storage import get_documents as fetch_documents
-from storage import get_projects as fetch_projects
-from storage import get_tasks as fetch_tasks
-from storage import upsert_document, upsert_project as ensure_project
+from utils.storage import get_completed_translations
+from utils.storage import get_documents as fetch_documents
+from utils.storage import get_projects as fetch_projects
+from utils.storage import get_tasks as fetch_tasks
+from utils.storage import upsert_document, upsert_project as ensure_project
 from utils.docx import write_project_docx
 from utils.file_types import detect_mime_type, detect_source_type
 

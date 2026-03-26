@@ -11,8 +11,7 @@
 - `python src/main.py publish-docx <project_name> <output.docx>`: Publish completed translated documents for a project into a Word document.
 
 # Todo
-
-- Failure/retry mechanisms
-- Memory aware processing
+- Error reporting
 - Stress test max batch size
+- Memory aware processing
 - Run on entire book
