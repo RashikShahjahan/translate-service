@@ -5,9 +5,12 @@
 - `SOURCE_LANG_CODE`: Source language code for translation. Default: `bn`
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
 - `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per scheduled run. Default: `16`
-- `TRANSLATION_RUN_AT`: Daily time to run `start_translation` in `HH:MM` 24-hour format. Default: `00:00`
 
-# Notes
 
+# Todo
+
+- Publish to docx command
+- Failure/retry mechanisms
+- Memory aware processing
 - Stress test max batch size
 - Run on entire book
