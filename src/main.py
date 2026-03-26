@@ -126,6 +126,7 @@ def main() -> int:
                     "source_name": document["source_name"],
                     "source_type": document["source_type"],
                     "status": document["status"],
+                    "started_processing_at": document["started_processing_at"],
                     "created_at": document["created_at"],
                     "updated_at": document["updated_at"],
                 }
