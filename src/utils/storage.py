@@ -1,7 +1,17 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import LargeBinary, String, Text, create_engine, inspect, select
+from sqlalchemy import (
+    LargeBinary,
+    String,
+    Text,
+    case,
+    create_engine,
+    func,
+    inspect,
+    select,
+    update,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 from sqlalchemy import ForeignKey, UniqueConstraint
 
@@ -49,6 +59,7 @@ class Document(Base):
     translated_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     updated_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     project: Mapped[Project] = relationship(back_populates="documents")
@@ -66,6 +77,11 @@ def ensure_db() -> None:
     if "source_text" not in columns:
         with engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN source_text TEXT")
+    if "leased_at" not in columns:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN leased_at TEXT")
+
+
 def get_session() -> Session:
     ensure_db()
     return Session(engine)
@@ -140,6 +156,7 @@ def upsert_document(
     mime_type: str | None,
 ) -> None:
     status = STATUS_PENDING_OCR if source_type == "image" else STATUS_PENDING_TRANSLATION
+    now = utc_now_string()
 
     with get_session() as session:
         document = session.scalar(
@@ -149,7 +166,6 @@ def upsert_document(
             )
         )
         if document is None:
-            now = utc_now_string()
             document = Document(
                 project_id=project_id,
                 source_name=source_name,
@@ -158,6 +174,7 @@ def upsert_document(
                 source_text=source_text,
                 mime_type=mime_type,
                 status=status,
+                leased_at=None,
                 created_at=now,
                 updated_at=now,
             )
@@ -171,7 +188,9 @@ def upsert_document(
             document.translated_text = None
             document.status = status
             document.error_message = None
-            document.updated_at = utc_now_string()
+            document.leased_at = None
+            document.created_at = now
+            document.updated_at = now
         session.commit()
 
 
@@ -185,6 +204,7 @@ def get_tasks() -> list[dict]:
                 Document.source_type,
                 Document.status,
                 Document.error_message,
+                Document.leased_at,
                 Document.created_at,
                 Document.updated_at,
             )
@@ -208,6 +228,7 @@ def lease_document_for_ocr() -> dict | None:
 
         now = utc_now_string()
         document.status = STATUS_PROCESSING_OCR
+        document.leased_at = now
         document.updated_at = now
         session.commit()
         return {
@@ -226,6 +247,7 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
         document.translated_text = None
         document.status = STATUS_PENDING_TRANSLATION
         document.error_message = None
+        document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
 
@@ -246,6 +268,7 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
         now = utc_now_string()
         for document in documents:
             document.status = STATUS_PROCESSING_TRANSLATION
+            document.leased_at = now
             document.updated_at = now
 
         leased = [
@@ -269,6 +292,7 @@ def complete_translation(document_id: int, translated_text: str) -> None:
         document.translated_text = translated_text
         document.status = STATUS_COMPLETED
         document.error_message = None
+        document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
 
@@ -280,5 +304,43 @@ def fail_document(document_id: int, error_message: str) -> None:
             return
         document.status = STATUS_FAILED
         document.error_message = error_message
+        document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
+
+
+def recover_stale_leases(max_age_seconds: float) -> int:
+    cutoff = (datetime.now(UTC) - timedelta(seconds=max_age_seconds)).replace(
+        microsecond=0
+    )
+    now = utc_now_string()
+
+    with get_session() as session:
+        result = session.execute(
+            update(Document)
+            .where(
+                Document.status.in_(
+                    [STATUS_PROCESSING_OCR, STATUS_PROCESSING_TRANSLATION]
+                ),
+                (Document.leased_at.is_(None))
+                | (func.julianday(Document.leased_at) <= func.julianday(cutoff)),
+            )
+            .values(
+                status=case(
+                    (Document.status == STATUS_PROCESSING_OCR, STATUS_PENDING_OCR),
+                    (
+                        Document.status == STATUS_PROCESSING_TRANSLATION,
+                        STATUS_PENDING_TRANSLATION,
+                    ),
+                    else_=Document.status,
+                ),
+                leased_at=None,
+                updated_at=now,
+            )
+        )
+        recovered_count = int(result.rowcount or 0)
+        if not recovered_count:
+            return 0
+
+        session.commit()
+        return recovered_count

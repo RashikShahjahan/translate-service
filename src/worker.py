@@ -9,6 +9,7 @@ from utils.storage import (
     fail_document,
     lease_document_for_ocr,
     lease_documents_for_translation,
+    recover_stale_leases,
 )
 from utils.ocr import extract_text_from_image_bytes
 from utils.translation import translate_batch
@@ -20,6 +21,7 @@ TRANSLATION_BATCH_SIZE = int(os.getenv("TRANSLATION_BATCH_SIZE", "4"))
 TRANSLATION_MIN_AVAILABLE_MEMORY_MB = float(
     os.getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
 )
+LEASE_TIMEOUT_SECONDS = float(os.getenv("LEASE_TIMEOUT_SECONDS", "900"))
 
 
 def current_available_physical_memory_mb() -> float:
@@ -71,9 +73,13 @@ def start_ocr():
 
 
 def process_once(translation_batch_size: int) -> bool:
+    recovered_count = recover_stale_leases(LEASE_TIMEOUT_SECONDS)
+    if recovered_count:
+        print(f"Recovered {recovered_count} stale lease(s).")
+
     processed_ocr = start_ocr()
     processed_translation = start_translation(translation_batch_size)
-    return processed_ocr or processed_translation
+    return bool(recovered_count) or processed_ocr or processed_translation
 
 
 if __name__ == "__main__":

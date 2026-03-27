@@ -6,6 +6,7 @@
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
 - `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per run. Default: `4`
 - `TRANSLATION_MIN_AVAILABLE_MEMORY_MB`: Only start translation when current available memory is above this threshold. Default: `8192`
+- `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
 - `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `2`
 
 # Commands
