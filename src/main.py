@@ -65,12 +65,12 @@ def get_documents(project_name: str) -> list[dict]:
     return fetch_documents(project_name)
 
 
-def publish_project_docx(project_name: str, output_path: str) -> Path:
+def publish_project_docx(project_name: str, output_path: str | None = None) -> Path:
     documents = get_completed_translations(project_name)
     if not documents:
         raise ValueError(f"No completed translated documents found for project: {project_name}")
 
-    output = Path(output_path)
+    output = Path(output_path) if output_path else Path("output") / f"{project_name}.docx"
     write_project_docx(documents, output)
     return output
 
@@ -81,9 +81,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     upsert_project_parser = subparsers.add_parser(
         "add-tasks",
-        help="Store input files in SQLite and queue them for processing.",
+        help="Store input files and queue them for processing.",
     )
-    upsert_project_parser.add_argument("project_name", help="Project name stored in SQLite.")
+    upsert_project_parser.add_argument("project_name", help="Project name")
     upsert_project_parser.add_argument(
         "input",
         nargs="+",
@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     publish_docx_parser = subparsers.add_parser(
-        "publish-docx",
+        "publish",
         help="Write completed translated documents for a project to a DOCX file.",
     )
     publish_docx_parser.add_argument(
@@ -119,7 +119,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_docx_parser.add_argument(
         "output",
-        help="Output .docx path.",
+        nargs="?",
+        help="Optional output .docx path. Defaults to output/<project_name>.docx.",
     )
 
     return parser
@@ -157,7 +158,7 @@ def main() -> int:
             )
         return 0
 
-    if args.command == "publish-docx":
+    if args.command == "publish":
         output = publish_project_docx(args.project_name, args.output)
         print(output)
         return 0

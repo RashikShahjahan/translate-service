@@ -10,7 +10,7 @@
 
 # CLI
 
-- `python src/main.py publish-docx <project_name> <output.docx>`: Publish completed translated documents for a project into a Word document.
+- `python src/main.py publish <project_name> [output.docx]`: Publish completed translated documents for a project into a Word document. Defaults to `output/<project_name>.docx`.
 
 # Todo
 - Packaging
