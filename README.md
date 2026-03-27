@@ -6,6 +6,7 @@
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
 - `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per run. Default: `4`
 - `TRANSLATION_MIN_AVAILABLE_MEMORY_MB`: Only start translation when current available memory is above this threshold. Default: `8192`
+- `TRANSLATION_IDLE_UNLOAD_SECONDS`: Unload the translation model after this many seconds without translation work. Set to `0` to disable unloading. Default: `15`
 - `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
 - `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `2`
 - `LOG_LEVEL`: Logging verbosity for CLI and worker runs. Default: `INFO`
@@ -32,6 +33,32 @@ Use `uv run ...` if you are working from the project environment.
 ## Run the worker
 
 - `uv run python src/worker.py`: Start the long-running worker that performs OCR and translation until stopped.
+
+## Run the worker in the background on macOS
+
+For a quick temporary background run from the repo root:
+
+- `nohup uv run python src/worker.py >/dev/null 2>&1 &`
+
+This keeps the worker running after you close the terminal, but it will not restart automatically after a reboot or crash.
+
+For a persistent macOS background service, use `launchd`:
+
+1. Run the installer from the repo root:
+   - `bash scripts/install_launch_agent.sh`
+2. The installer writes `~/Library/LaunchAgents/com.rashik.translate-service.worker.plist` using the current repo path and your absolute `uv` binary path, then bootstraps and starts it.
+3. Check status or logs:
+   - `launchctl list | grep translate-service`
+   - `launchctl print gui/$(id -u)/com.rashik.translate-service.worker`
+   - `tail -f logs/translate_service.log`
+   - `tail -f logs/worker.stderr.log`
+4. Stop or unload it later:
+   - `launchctl bootout gui/$(id -u)/com.rashik.translate-service.worker`
+5. After changing worker code or environment variables, restart the LaunchAgent so it picks up the new code:
+   - `launchctl bootout gui/$(id -u)/com.rashik.translate-service.worker`
+   - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.rashik.translate-service.worker.plist`
+
+The LaunchAgent template lives at `launchd/com.rashik.translate-service.worker.plist` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. The installer replaces those with your current checkout path and resolved `uv` binary. The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent's stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
 
 ## Publish output
 

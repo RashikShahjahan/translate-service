@@ -1,8 +1,14 @@
+import gc
+import logging
 import os
+
+import mlx.core as mx
 from dotenv import load_dotenv
 from mlx_lm import batch_generate, load
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 TRANSLATION_MODEL = os.getenv(
     "TRANSLATION_MODEL",
@@ -21,6 +27,23 @@ def get_model_and_tokenizer():
             TRANSLATION_MODEL        )
         _TOKENIZER.add_eos_token("<end_of_turn>")
     return _MODEL, _TOKENIZER
+
+
+def translation_model_loaded() -> bool:
+    return _MODEL is not None and _TOKENIZER is not None
+
+
+def unload_model_if_loaded() -> bool:
+    global _MODEL, _TOKENIZER
+    if not translation_model_loaded():
+        return False
+
+    _MODEL = None
+    _TOKENIZER = None
+    gc.collect()
+    mx.clear_cache()
+    logger.info("Unloaded translation model and cleared MLX cache")
+    return True
 
 
 def prepare_prompt(text: str) -> str:
