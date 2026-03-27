@@ -12,3 +12,4 @@ test-data/
 artifacts/
 output/
 logs/
+launchd/

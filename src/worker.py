@@ -14,18 +14,25 @@ from utils.storage import (
 )
 from utils.ocr import extract_text_from_image_bytes
 from utils.logging_utils import configure_logging
-from utils.translation import translate_batch
+from utils.translation import (
+    translate_batch,
+    translation_model_loaded,
+    unload_model_if_loaded,
+)
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-IDLE_SLEEP_SECONDS = float(os.getenv("IDLE_SLEEP_SECONDS", "2"))
+IDLE_SLEEP_SECONDS = float(os.getenv("IDLE_SLEEP_SECONDS", "60"))
 TRANSLATION_BATCH_SIZE = int(os.getenv("TRANSLATION_BATCH_SIZE", "4"))
 TRANSLATION_MIN_AVAILABLE_MEMORY_MB = float(
     os.getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
 )
 LEASE_TIMEOUT_SECONDS = float(os.getenv("LEASE_TIMEOUT_SECONDS", "900"))
+TRANSLATION_IDLE_UNLOAD_SECONDS = float(
+    os.getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
+)
 
 
 def current_available_physical_memory_mb() -> float:
@@ -97,14 +104,35 @@ def start_ocr():
     return True
 
 
-def process_once(translation_batch_size: int) -> bool:
+def process_once(translation_batch_size: int) -> tuple[bool, bool]:
     recovered_count = recover_stale_leases(LEASE_TIMEOUT_SECONDS)
     if recovered_count:
         logger.info("Recovered %d stale lease(s)", recovered_count)
 
     processed_ocr = start_ocr()
     processed_translation = start_translation(translation_batch_size)
-    return bool(recovered_count) or processed_ocr or processed_translation
+    return bool(recovered_count) or processed_ocr or processed_translation, processed_translation
+
+
+def maybe_unload_translation_model(last_translation_at: float | None) -> float | None:
+    if last_translation_at is None:
+        return None
+    if TRANSLATION_IDLE_UNLOAD_SECONDS <= 0:
+        return last_translation_at
+    if not translation_model_loaded():
+        return None
+
+    idle_for_seconds = time.monotonic() - last_translation_at
+    if idle_for_seconds < TRANSLATION_IDLE_UNLOAD_SECONDS:
+        return last_translation_at
+
+    if unload_model_if_loaded():
+        logger.info(
+            "Unloaded translation model after %.2fs without translation work",
+            idle_for_seconds,
+        )
+        return None
+    return last_translation_at
 
 
 if __name__ == "__main__":
@@ -113,10 +141,18 @@ if __name__ == "__main__":
         "Worker starting. Press Ctrl+%s to exit",
         "Break" if os.name == "nt" else "C",
     )
+    last_translation_at: float | None = None
 
     try:
         while True:
-            if not process_once(TRANSLATION_BATCH_SIZE):
+            processed_work, processed_translation = process_once(TRANSLATION_BATCH_SIZE)
+            if processed_translation:
+                last_translation_at = time.monotonic()
+            else:
+                last_translation_at = maybe_unload_translation_model(last_translation_at)
+            if processed_work:
+                continue
+            else:
                 time.sleep(IDLE_SLEEP_SECONDS)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Worker stopped")
