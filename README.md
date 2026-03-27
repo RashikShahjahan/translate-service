@@ -8,6 +8,7 @@
 - `TRANSLATION_MIN_AVAILABLE_MEMORY_MB`: Only start translation when current available memory is above this threshold. Default: `8192`
 - `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
 - `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `2`
+- `LOG_LEVEL`: Logging verbosity for CLI and worker runs. Default: `INFO`
 
 # Commands
 
@@ -42,8 +43,6 @@ Use `uv run ...` if you are working from the project environment.
 - `uv run python scripts/stress_test_batch_translate.py`: Benchmark batch translation throughput and memory usage, then save a plot to `artifacts/stress_test_batch_translate.png`.
 
 # Todo
-- Failure detection
-- Logging
 - Running in background
 - Run on entire book
 - Blog post
