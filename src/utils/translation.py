@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 from mlx_lm import batch_generate, load
 
@@ -13,7 +12,6 @@ SOURCE_LANG_CODE = os.getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
 TARGET_LANG_CODE = os.getenv("TARGET_LANG_CODE", "en").strip() or "en"
 _MODEL = None
 _TOKENIZER = None
-
 
 
 def get_model_and_tokenizer():

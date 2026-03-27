@@ -1,6 +1,7 @@
 import os
 import time
 
+import psutil
 from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
@@ -16,8 +17,26 @@ load_dotenv()
 
 IDLE_SLEEP_SECONDS = float(os.getenv("IDLE_SLEEP_SECONDS", "2"))
 TRANSLATION_BATCH_SIZE = int(os.getenv("TRANSLATION_BATCH_SIZE", "4"))
+TRANSLATION_MIN_AVAILABLE_MEMORY_MB = float(
+    os.getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
+)
+
+
+def current_available_physical_memory_mb() -> float:
+    return float(psutil.virtual_memory().available) / (1024 * 1024)
+
+
+def translation_memory_gate_open() -> bool:
+    available_memory_mb = current_available_physical_memory_mb()
+    physical_gate_open = available_memory_mb >= TRANSLATION_MIN_AVAILABLE_MEMORY_MB
+    gate_open = physical_gate_open
+    return gate_open
+
 
 def start_translation(translation_batch_size: int):
+    if not translation_memory_gate_open():
+        return False
+
     leased_items = lease_documents_for_translation(translation_batch_size)
     input_texts = [str(item["input_text"]).strip() for item in leased_items]
     if not input_texts:
