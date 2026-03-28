@@ -8,6 +8,9 @@
 - `TRANSLATION_MIN_AVAILABLE_MEMORY_MB`: Only start translation when current available memory is above this threshold. Default: `8192`
 - `TRANSLATION_IDLE_UNLOAD_SECONDS`: Unload the translation model after this many seconds without translation work. Set to `0` to disable unloading. Default: `15`
 - `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
+- `RETRY_BACKOFF_BASE_SECONDS`: Base delay for failed OCR/translation retries. Each failure doubles the delay from this base. Default: `5`
+- `RETRY_BACKOFF_MAX_SECONDS`: Maximum delay for failed OCR/translation retries. Default: `300`
+- OCR or translation exceptions are also requeued automatically; the most recent error is kept on the task record in `error_message`.
 - `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `2`
 - `LOG_LEVEL`: Logging verbosity for CLI and worker runs. Default: `INFO`
 
@@ -26,7 +29,7 @@ Use `uv run ...` if you are working from the project environment.
 
 ## Inspect queued and stored data
 
-- `uv run python src/main.py get-tasks`: Print the currently queued OCR and translation tasks.
+- `uv run python src/main.py get-tasks`: Print the currently queued OCR and translation tasks, including `retry_count` and `next_attempt_at`.
 - `uv run python src/main.py list-projects`: Print all stored project names.
 - `uv run python src/main.py list-documents <project_name>`: Print stored documents for a project, including status and timestamps.
 
