@@ -24,7 +24,6 @@ STATUS_PROCESSING_OCR = "processing_ocr"
 STATUS_PENDING_TRANSLATION = "pending_translation"
 STATUS_PROCESSING_TRANSLATION = "processing_translation"
 STATUS_COMPLETED = "completed"
-STATUS_FAILED = "failed"
 
 
 class Base(DeclarativeBase):
@@ -59,6 +58,8 @@ class Document(Base):
     translated_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    next_attempt_at: Mapped[str | None] = mapped_column(String, nullable=True)
     leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
     updated_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
@@ -80,6 +81,14 @@ def ensure_db() -> None:
     if "leased_at" not in columns:
         with engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN leased_at TEXT")
+    if "retry_count" not in columns:
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "ALTER TABLE documents ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0"
+            )
+    if "next_attempt_at" not in columns:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN next_attempt_at TEXT")
 
 
 def get_session() -> Session:
@@ -174,6 +183,8 @@ def upsert_document(
                 source_text=source_text,
                 mime_type=mime_type,
                 status=status,
+                retry_count=0,
+                next_attempt_at=None,
                 leased_at=None,
                 created_at=now,
                 updated_at=now,
@@ -188,6 +199,8 @@ def upsert_document(
             document.translated_text = None
             document.status = status
             document.error_message = None
+            document.retry_count = 0
+            document.next_attempt_at = None
             document.leased_at = None
             document.created_at = now
             document.updated_at = now
@@ -204,6 +217,8 @@ def get_tasks() -> list[dict]:
                 Document.source_type,
                 Document.status,
                 Document.error_message,
+                Document.retry_count,
+                Document.next_attempt_at,
                 Document.leased_at,
                 Document.created_at,
                 Document.updated_at,
@@ -217,17 +232,22 @@ def get_tasks() -> list[dict]:
 
 def lease_document_for_ocr() -> dict | None:
     with get_session() as session:
+        now = utc_now_string()
         document = session.scalar(
             select(Document)
             .where(Document.status == STATUS_PENDING_OCR)
+            .where(
+                (Document.next_attempt_at.is_(None))
+                | (Document.next_attempt_at <= now)
+            )
             .order_by(Document.created_at.asc(), Document.id.asc())
             .limit(1)
         )
         if document is None:
             return None
 
-        now = utc_now_string()
         document.status = STATUS_PROCESSING_OCR
+        document.next_attempt_at = None
         document.leased_at = now
         document.updated_at = now
         session.commit()
@@ -235,6 +255,7 @@ def lease_document_for_ocr() -> dict | None:
             "id": document.id,
             "source_bytes": document.source_bytes,
             "mime_type": document.mime_type,
+            "retry_count": document.retry_count,
         }
 
 
@@ -247,6 +268,8 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
         document.translated_text = None
         document.status = STATUS_PENDING_TRANSLATION
         document.error_message = None
+        document.retry_count = 0
+        document.next_attempt_at = None
         document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
@@ -254,10 +277,15 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
 
 def lease_documents_for_translation(limit: int) -> list[dict]:
     with get_session() as session:
+        now = utc_now_string()
         documents = list(
             session.scalars(
                 select(Document)
                 .where(Document.status == STATUS_PENDING_TRANSLATION)
+                .where(
+                    (Document.next_attempt_at.is_(None))
+                    | (Document.next_attempt_at <= now)
+                )
                 .order_by(Document.created_at.asc(), Document.id.asc())
                 .limit(limit)
             )
@@ -265,9 +293,9 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
         if not documents:
             return []
 
-        now = utc_now_string()
         for document in documents:
             document.status = STATUS_PROCESSING_TRANSLATION
+            document.next_attempt_at = None
             document.leased_at = now
             document.updated_at = now
 
@@ -277,6 +305,7 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
                 "source_type": document.source_type,
                 "source_name": document.source_name,
                 "input_text": document.ocr_text or document.source_text,
+                "retry_count": document.retry_count,
             }
             for document in documents
         ]
@@ -292,18 +321,28 @@ def complete_translation(document_id: int, translated_text: str) -> None:
         document.translated_text = translated_text
         document.status = STATUS_COMPLETED
         document.error_message = None
+        document.retry_count = 0
+        document.next_attempt_at = None
         document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
 
 
-def fail_document(document_id: int, error_message: str) -> None:
+def requeue_document(document_id: int, error_message: str, backoff_seconds: float) -> None:
     with get_session() as session:
         document = session.get(Document, document_id)
         if document is None:
             return
-        document.status = STATUS_FAILED
+
+        if document.status == STATUS_PROCESSING_OCR:
+            document.status = STATUS_PENDING_OCR
+        elif document.status == STATUS_PROCESSING_TRANSLATION:
+            document.status = STATUS_PENDING_TRANSLATION
         document.error_message = error_message
+        document.retry_count += 1
+        document.next_attempt_at = (
+            datetime.now(UTC) + timedelta(seconds=backoff_seconds)
+        ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
@@ -335,6 +374,7 @@ def recover_stale_leases(max_age_seconds: float) -> int:
                     else_=Document.status,
                 ),
                 leased_at=None,
+                next_attempt_at=None,
                 updated_at=now,
             )
         )

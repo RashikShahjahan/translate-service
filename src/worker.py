@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
     complete_translation,
-    fail_document,
     lease_document_for_ocr,
     lease_documents_for_translation,
     recover_stale_leases,
+    requeue_document,
 )
 from utils.ocr import extract_text_from_image_bytes
 from utils.logging_utils import configure_logging
@@ -33,6 +33,8 @@ LEASE_TIMEOUT_SECONDS = float(os.getenv("LEASE_TIMEOUT_SECONDS", "900"))
 TRANSLATION_IDLE_UNLOAD_SECONDS = float(
     os.getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
 )
+RETRY_BACKOFF_BASE_SECONDS = float(os.getenv("RETRY_BACKOFF_BASE_SECONDS", "5"))
+RETRY_BACKOFF_MAX_SECONDS = float(os.getenv("RETRY_BACKOFF_MAX_SECONDS", "300"))
 
 
 def current_available_physical_memory_mb() -> float:
@@ -50,6 +52,12 @@ def translation_memory_gate_open() -> bool:
     )
     gate_open = physical_gate_open
     return gate_open
+
+
+def retry_backoff_seconds(retry_count: int) -> float:
+    exponent = max(retry_count - 1, 0)
+    delay_seconds = RETRY_BACKOFF_BASE_SECONDS * (2**exponent)
+    return min(delay_seconds, RETRY_BACKOFF_MAX_SECONDS)
 
 
 def start_translation(translation_batch_size: int):
@@ -75,9 +83,17 @@ def start_translation(translation_batch_size: int):
             logger.info("Completed translation for document %s", leased["id"])
     except Exception as exc:
         for leased in leased_items:
-            fail_document(int(leased["id"]), str(exc))
+            next_retry_count = int(leased.get("retry_count", 0)) + 1
+            backoff_seconds = retry_backoff_seconds(next_retry_count)
+            requeue_document(int(leased["id"]), str(exc), backoff_seconds)
+            logger.warning(
+                "Requeued translation document %s after failure; retry_count=%d backoff=%.2fs",
+                leased["id"],
+                next_retry_count,
+                backoff_seconds,
+            )
         logger.exception("Translation failed for document(s): %s", document_ids)
-        raise
+        return False
     logger.info("Finished translation batch for %d document(s)", len(document_ids))
     return True
 
@@ -97,9 +113,17 @@ def start_ocr():
         )
         complete_ocr(document_id, text)
     except Exception as exc:
-        fail_document(document_id, str(exc))
+        next_retry_count = int(queue_entry.get("retry_count", 0)) + 1
+        backoff_seconds = retry_backoff_seconds(next_retry_count)
+        requeue_document(document_id, str(exc), backoff_seconds)
+        logger.warning(
+            "Requeued OCR document %s after failure; retry_count=%d backoff=%.2fs",
+            document_id,
+            next_retry_count,
+            backoff_seconds,
+        )
         logger.exception("OCR failed for document %s", document_id)
-        raise
+        return False
     logger.info("Completed OCR for document %s", document_id)
     return True
 
