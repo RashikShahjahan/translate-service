@@ -161,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     publish_docx_parser = subparsers.add_parser(
-        "publish",
+        "export",
         help="Write one DOCX file per completed translated document.",
     )
     publish_docx_parser.add_argument(
@@ -214,7 +214,7 @@ def main() -> int:
                 )
             return 0
 
-        if args.command == "publish":
+        if args.command == "export":
             outputs = publish_project_docx(args.project_name, args.output)
             for output in outputs:
                 print(output)
