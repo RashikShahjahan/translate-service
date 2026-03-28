@@ -73,24 +73,6 @@ engine = create_engine(DATABASE_URL)
 def ensure_db() -> None:
     Base.metadata.create_all(engine)
 
-    inspector = inspect(engine)
-    columns = {column["name"] for column in inspector.get_columns("documents")}
-    if "source_text" not in columns:
-        with engine.begin() as conn:
-            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN source_text TEXT")
-    if "leased_at" not in columns:
-        with engine.begin() as conn:
-            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN leased_at TEXT")
-    if "retry_count" not in columns:
-        with engine.begin() as conn:
-            conn.exec_driver_sql(
-                "ALTER TABLE documents ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0"
-            )
-    if "next_attempt_at" not in columns:
-        with engine.begin() as conn:
-            conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN next_attempt_at TEXT")
-
-
 def get_session() -> Session:
     ensure_db()
     return Session(engine)
@@ -115,7 +97,6 @@ def get_projects() -> list[dict]:
                 Project.name,
                 Project.created_at,
             )
-            .order_by(Project.created_at.asc(), Project.id.asc())
         ).mappings()
         return [dict(row) for row in rows]
 
