@@ -7,7 +7,7 @@ from utils.storage import get_documents as fetch_documents
 from utils.storage import get_projects as fetch_projects
 from utils.storage import get_tasks as fetch_tasks
 from utils.storage import upsert_document, upsert_project as ensure_project
-from utils.docx import write_project_docx
+from utils.docx import write_document_docx
 from utils.file_types import detect_mime_type, detect_source_type
 from utils.logging_utils import configure_logging
 
@@ -96,17 +96,32 @@ def get_documents(project_name: str) -> list[dict]:
     return fetch_documents(project_name)
 
 
-def publish_project_docx(project_name: str, output_path: str | None = None) -> Path:
+def document_output_path(output_dir: Path, source_name: str) -> Path:
+    source_path = Path(source_name)
+    return output_dir / source_path.with_suffix(".docx")
+
+
+def publish_project_docx(project_name: str, output_path: str | None = None) -> list[Path]:
     documents = get_completed_translations(project_name)
     if not documents:
         raise ValueError(
             f"No completed translated documents found for project: {project_name}"
         )
 
-    output = Path(output_path) if output_path else Path("output") / f"{project_name}.docx"
-    write_project_docx(documents, output)
-    logger.info("Wrote DOCX output to %s", output)
-    return output
+    output_dir = Path(output_path) if output_path else Path("output") / project_name
+    outputs: list[Path] = []
+
+    for document in documents:
+        output = document_output_path(output_dir, str(document["source_name"]))
+        write_document_docx(document, output)
+        outputs.append(output)
+
+    logger.info(
+        "Wrote %d DOCX output file(s) to %s",
+        len(outputs),
+        output_dir,
+    )
+    return outputs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -147,7 +162,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     publish_docx_parser = subparsers.add_parser(
         "publish",
-        help="Write completed translated documents for a project to a DOCX file.",
+        help="Write one DOCX file per completed translated document.",
     )
     publish_docx_parser.add_argument(
         "project_name",
@@ -156,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish_docx_parser.add_argument(
         "output",
         nargs="?",
-        help="Optional output .docx path. Defaults to output/<project_name>.docx.",
+        help="Optional output directory. Defaults to output/<project_name>/.",
     )
 
     return parser
@@ -200,8 +215,9 @@ def main() -> int:
             return 0
 
         if args.command == "publish":
-            output = publish_project_docx(args.project_name, args.output)
-            print(output)
+            outputs = publish_project_docx(args.project_name, args.output)
+            for output in outputs:
+                print(output)
             return 0
     except Exception:
         logger.exception("Command '%s' failed", args.command)
