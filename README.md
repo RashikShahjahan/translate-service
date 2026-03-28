@@ -62,14 +62,10 @@ The LaunchAgent template lives at `launchd/com.rashik.translate-service.worker.p
 
 ## Publish output
 
-- `uv run python src/main.py publish <project_name> [output.docx]`: Build a DOCX from completed translated documents for a project. If `output.docx` is omitted, output goes to `output/<project_name>.docx`.
-- Example: `uv run python src/main.py publish book output/book-en.docx`
+- `uv run python src/main.py publish <project_name> [output_dir]`: Build one DOCX per completed translated document for a project. If `output_dir` is omitted, files are written under `output/<project_name>/`.
+- The output path mirrors each stored `source_name`, replacing its original suffix with `.docx`.
+- Example: `uv run python src/main.py publish book output/book-en`
 
 ## Stress test translation batches
 
 - `uv run python scripts/stress_test_batch_translate.py`: Benchmark batch translation throughput and memory usage, then save a plot to `artifacts/stress_test_batch_translate.png`.
-
-# Todo
-- Running in background
-- Run on entire book
-- Blog post
