@@ -6,7 +6,7 @@ from utils.storage import get_completed_translations
 from utils.storage import get_documents as fetch_documents
 from utils.storage import get_projects as fetch_projects
 from utils.storage import get_tasks as fetch_tasks
-from utils.storage import upsert_document, upsert_project as ensure_project
+from utils.storage import upsert_document, upsert_project
 from utils.docx import write_document_docx
 from utils.file_types import detect_mime_type, detect_source_type
 from utils.logging_utils import configure_logging
@@ -56,13 +56,13 @@ def iter_input_files(input_path: Path):
     raise FileNotFoundError(f"Input path does not exist: {input_path}")
 
 
-def upsert_project(project_name: str, input_paths: str | list[str]) -> int:
+def add_tasks(project_name: str, input_paths: str | list[str]) -> int:
     if isinstance(input_paths, str):
         paths = [input_paths]
     else:
         paths = input_paths
 
-    project_id = ensure_project(project_name)
+    project_id = upsert_project(project_name)
     queued_count = 0
     skipped_count = 0
 
@@ -83,17 +83,6 @@ def upsert_project(project_name: str, input_paths: str | list[str]) -> int:
     )
     return queued_count
 
-
-def get_tasks() -> list[dict]:
-    return fetch_tasks()
-
-
-def get_projects() -> list[dict]:
-    return fetch_projects()
-
-
-def get_documents(project_name: str) -> list[dict]:
-    return fetch_documents(project_name)
 
 
 def document_output_path(output_dir: Path, source_name: str) -> Path:
@@ -132,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     upsert_project_parser = subparsers.add_parser(
         "add-tasks",
-        help="Store input files and queue them for processing.",
+        help="Store input files and queue them for translation.",
     )
     upsert_project_parser.add_argument("project_name", help="Project name")
     upsert_project_parser.add_argument(
@@ -184,23 +173,23 @@ def main() -> int:
 
     try:
         if args.command == "add-tasks":
-            upsert_project(args.project_name, args.input)
+            add_tasks(args.project_name, args.input)
             return 0
 
         if args.command == "get-tasks":
-            tasks = get_tasks()
+            tasks = fetch_tasks()
             for task in tasks:
                 print(task)
             return 0
 
         if args.command == "list-projects":
-            projects = get_projects()
+            projects = fetch_projects()
             for project in projects:
                 print(project["name"])
             return 0
 
         if args.command == "list-documents":
-            documents = get_documents(args.project_name)
+            documents = fetch_documents(args.project_name)
             for document in documents:
                 print(
                     {
