@@ -16,8 +16,7 @@ from utils.ocr import extract_text_from_image_bytes
 from utils.logging_utils import configure_logging
 from utils.translation import (
     translate_batch,
-    translation_model_loaded,
-    unload_model_if_loaded,
+    unload_model,
 )
 
 load_dotenv()
@@ -138,27 +137,6 @@ def process_once(translation_batch_size: int) -> tuple[bool, bool]:
     return bool(recovered_count) or processed_ocr or processed_translation, processed_translation
 
 
-def maybe_unload_translation_model(last_translation_at: float | None) -> float | None:
-    if last_translation_at is None:
-        return None
-    if TRANSLATION_IDLE_UNLOAD_SECONDS <= 0:
-        return last_translation_at
-    if not translation_model_loaded():
-        return None
-
-    idle_for_seconds = time.monotonic() - last_translation_at
-    if idle_for_seconds < TRANSLATION_IDLE_UNLOAD_SECONDS:
-        return last_translation_at
-
-    if unload_model_if_loaded():
-        logger.info(
-            "Unloaded translation model after %.2fs without translation work",
-            idle_for_seconds,
-        )
-        return None
-    return last_translation_at
-
-
 if __name__ == "__main__":
     configure_logging()
     logger.info(
@@ -173,7 +151,11 @@ if __name__ == "__main__":
             if processed_translation:
                 last_translation_at = time.monotonic()
             else:
-                last_translation_at = maybe_unload_translation_model(last_translation_at)
+               if last_translation_at is None:
+                    continue
+               idle_for_seconds = time.monotonic() - last_translation_at
+               if idle_for_seconds >= TRANSLATION_IDLE_UNLOAD_SECONDS:
+                    unload_model()
             if processed_work:
                 continue
             else:

@@ -29,21 +29,14 @@ def get_model_and_tokenizer():
     return _MODEL, _TOKENIZER
 
 
-def translation_model_loaded() -> bool:
-    return _MODEL is not None and _TOKENIZER is not None
 
-
-def unload_model_if_loaded() -> bool:
+def unload_model():
     global _MODEL, _TOKENIZER
-    if not translation_model_loaded():
-        return False
-
     _MODEL = None
     _TOKENIZER = None
     gc.collect()
     mx.clear_cache()
     logger.info("Unloaded translation model and cleared MLX cache")
-    return True
 
 
 def prepare_prompt(text: str) -> str:
