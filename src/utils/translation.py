@@ -2,9 +2,7 @@ import gc
 import logging
 import os
 
-import mlx.core as mx
 from dotenv import load_dotenv
-from mlx_lm import batch_generate, load
 
 load_dotenv()
 
@@ -23,6 +21,8 @@ _TOKENIZER = None
 def get_model_and_tokenizer():
     global _MODEL, _TOKENIZER
     if _MODEL is None or _TOKENIZER is None:
+        from mlx_lm import load
+
         _MODEL, _TOKENIZER = load(
             TRANSLATION_MODEL        )
         _TOKENIZER.add_eos_token("<end_of_turn>")
@@ -32,6 +32,8 @@ def get_model_and_tokenizer():
 
 def unload_model():
     global _MODEL, _TOKENIZER
+    import mlx.core as mx
+
     _MODEL = None
     _TOKENIZER = None
     gc.collect()
@@ -60,6 +62,8 @@ def prepare_prompt(text: str) -> str:
 
 
 def translate_batch(batch: list[str]) -> list[str]:
+    from mlx_lm import batch_generate
+
     model, tokenizer = get_model_and_tokenizer()
     prompts = [prepare_prompt(text) for text in batch]
 

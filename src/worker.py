@@ -12,12 +12,7 @@ from utils.storage import (
     recover_stale_leases,
     requeue_document,
 )
-from utils.ocr import extract_text_from_image_bytes
 from utils.logging_utils import configure_logging
-from utils.translation import (
-    translate_batch,
-    unload_model,
-)
 
 load_dotenv()
 
@@ -76,6 +71,8 @@ def start_translation(translation_batch_size: int):
     )
 
     try:
+        from utils.translation import translate_batch
+
         results = translate_batch(input_texts)
         for leased, translated_text in zip(leased_items, results):
             complete_translation(int(leased["id"]), translated_text.strip())
@@ -98,6 +95,7 @@ def start_translation(translation_batch_size: int):
 
 
 def start_ocr():
+
     queue_entry = lease_document_for_ocr()
     if queue_entry is None:
         return False
@@ -106,6 +104,8 @@ def start_ocr():
     logger.info("Starting OCR for document %s", document_id)
 
     try:
+        from utils.ocr import extract_text_from_image_bytes
+
         text = extract_text_from_image_bytes(
             bytes(queue_entry["source_bytes"]),
             str(queue_entry["mime_type"]),
@@ -155,6 +155,8 @@ if __name__ == "__main__":
                     continue
                idle_for_seconds = time.monotonic() - last_translation_at
                if idle_for_seconds >= TRANSLATION_IDLE_UNLOAD_SECONDS:
+                    from utils.translation import unload_model
+
                     unload_model()
             if processed_work:
                 continue

@@ -2,9 +2,6 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from utils.file_types import detect_image_mime_type
 
 load_dotenv()
 
@@ -12,6 +9,8 @@ OCR_MODEL = os.getenv("OCR_MODEL", "gemini-3.1-flash-lite-preview")
 
 
 def extract_text_from_image(source_path: str) -> str:
+    from utils.file_types import detect_image_mime_type
+
     image_path = Path(source_path)
     return extract_text_from_image_bytes(
         image_path.read_bytes(),
@@ -20,6 +19,9 @@ def extract_text_from_image(source_path: str) -> str:
 
 
 def extract_text_from_image_bytes(image_bytes: bytes, mime_type: str) -> str:
+    from google import genai
+    from google.genai import types
+
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
