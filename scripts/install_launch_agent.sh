@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-label="com.rashik.translate-service.worker"
+label="local.translate-service.worker"
 domain="gui/$(id -u)"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 template_path="$repo_root/launchd/$label.plist"

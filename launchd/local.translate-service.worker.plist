@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>local.translate-service.worker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>__UV_BIN__</string>
+      <string>run</string>
+      <string>python</string>
+      <string>src/worker.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__WORKDIR__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__WORKDIR__/logs/worker.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__WORKDIR__/logs/worker.stderr.log</string>
+  </dict>
+</plist>

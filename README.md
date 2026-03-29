@@ -49,19 +49,19 @@ For a persistent macOS background service, use `launchd`:
 
 1. Run the installer from the repo root:
    - `bash scripts/install_launch_agent.sh`
-2. The installer writes `~/Library/LaunchAgents/com.rashik.translate-service.worker.plist` using the current repo path and your absolute `uv` binary path, then bootstraps and starts it.
+2. The installer writes `~/Library/LaunchAgents/local.translate-service.worker.plist` using the current repo path and your absolute `uv` binary path, then bootstraps and starts it.
 3. Check status or logs:
    - `launchctl list | grep translate-service`
-   - `launchctl print gui/$(id -u)/com.rashik.translate-service.worker`
+   - `launchctl print gui/$(id -u)/local.translate-service.worker`
    - `tail -f logs/translate_service.log`
    - `tail -f logs/worker.stderr.log`
 4. Stop or unload it later:
-   - `launchctl bootout gui/$(id -u)/com.rashik.translate-service.worker`
+   - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
 5. After changing worker code or environment variables, restart the LaunchAgent so it picks up the new code:
-   - `launchctl bootout gui/$(id -u)/com.rashik.translate-service.worker`
-   - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.rashik.translate-service.worker.plist`
+   - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
+   - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.translate-service.worker.plist`
 
-The LaunchAgent template lives at `launchd/com.rashik.translate-service.worker.plist` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. The installer replaces those with your current checkout path and resolved `uv` binary. The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent's stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
+The LaunchAgent template lives at `launchd/local.translate-service.worker.plist` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. The installer replaces those with your current checkout path and resolved `uv` binary. The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent's stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
 
 ## Publish output
 
