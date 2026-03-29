@@ -8,7 +8,6 @@ from sqlalchemy import (
     case,
     create_engine,
     func,
-    inspect,
     select,
     update,
 )
@@ -114,7 +113,6 @@ def get_documents(project_name: str) -> list[dict]:
             )
             .join(Project, Project.id == Document.project_id)
             .where(Project.name == project_name)
-            .order_by(Document.source_name.asc(), Document.id.asc())
         ).mappings()
         return [dict(row) for row in rows]
 
@@ -130,7 +128,6 @@ def get_completed_translations(project_name: str) -> list[dict]:
             .join(Project, Project.id == Document.project_id)
             .where(Project.name == project_name)
             .where(Document.status == STATUS_COMPLETED)
-            .where(Document.translated_text.is_not(None))
             .order_by(Document.source_name.asc(), Document.id.asc())
         ).mappings()
         return [dict(row) for row in rows]
@@ -211,27 +208,53 @@ def get_tasks() -> list[dict]:
         return [dict(row) for row in rows]
 
 
-def lease_document_for_ocr() -> dict | None:
+def _lease_documents(
+    *,
+    pending_status: str,
+    processing_status: str,
+    limit: int,
+) -> list[int]:
     with get_session() as session:
         now = utc_now_string()
-        document = session.scalar(
-            select(Document)
-            .where(Document.status == STATUS_PENDING_OCR)
-            .where(
-                (Document.next_attempt_at.is_(None))
-                | (Document.next_attempt_at <= now)
+        documents = list(
+            session.scalars(
+                select(Document)
+                .where(Document.status == pending_status)
+                .where(
+                    (Document.next_attempt_at.is_(None))
+                    | (Document.next_attempt_at <= now)
+                )
+                .order_by(Document.created_at.asc(), Document.id.asc())
+                .limit(limit)
             )
-            .order_by(Document.created_at.asc(), Document.id.asc())
-            .limit(1)
         )
+        if not documents:
+            return []
+
+        for document in documents:
+            document.status = processing_status
+            document.next_attempt_at = None
+            document.leased_at = now
+            document.updated_at = now
+
+        leased_document_ids = [document.id for document in documents]
+        session.commit()
+        return leased_document_ids
+
+
+def lease_document_for_ocr() -> dict | None:
+    leased_document_ids = _lease_documents(
+        pending_status=STATUS_PENDING_OCR,
+        processing_status=STATUS_PROCESSING_OCR,
+        limit=1,
+    )
+    if not leased_document_ids:
+        return None
+
+    with get_session() as session:
+        document = session.get(Document, leased_document_ids[0])
         if document is None:
             return None
-
-        document.status = STATUS_PROCESSING_OCR
-        document.next_attempt_at = None
-        document.leased_at = now
-        document.updated_at = now
-        session.commit()
         return {
             "id": document.id,
             "source_bytes": document.source_bytes,
@@ -257,30 +280,19 @@ def complete_ocr(document_id: int, extracted_text: str) -> None:
 
 
 def lease_documents_for_translation(limit: int) -> list[dict]:
+    leased_document_ids = _lease_documents(
+        pending_status=STATUS_PENDING_TRANSLATION,
+        processing_status=STATUS_PROCESSING_TRANSLATION,
+        limit=limit,
+    )
+    if not leased_document_ids:
+        return []
+
     with get_session() as session:
-        now = utc_now_string()
-        documents = list(
-            session.scalars(
-                select(Document)
-                .where(Document.status == STATUS_PENDING_TRANSLATION)
-                .where(
-                    (Document.next_attempt_at.is_(None))
-                    | (Document.next_attempt_at <= now)
-                )
-                .order_by(Document.created_at.asc(), Document.id.asc())
-                .limit(limit)
-            )
-        )
-        if not documents:
-            return []
-
-        for document in documents:
-            document.status = STATUS_PROCESSING_TRANSLATION
-            document.next_attempt_at = None
-            document.leased_at = now
-            document.updated_at = now
-
-        leased = [
+        documents = [
+            session.get(Document, document_id) for document_id in leased_document_ids
+        ]
+        return [
             {
                 "id": document.id,
                 "source_type": document.source_type,
@@ -289,9 +301,8 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
                 "retry_count": document.retry_count,
             }
             for document in documents
+            if document is not None
         ]
-        session.commit()
-        return leased
 
 
 def complete_translation(document_id: int, translated_text: str) -> None:

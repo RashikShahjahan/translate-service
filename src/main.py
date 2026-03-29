@@ -3,9 +3,9 @@ import logging
 from pathlib import Path
 
 from utils.storage import get_completed_translations
-from utils.storage import get_documents as fetch_documents
-from utils.storage import get_projects as fetch_projects
-from utils.storage import get_tasks as fetch_tasks
+from utils.storage import get_documents
+from utils.storage import get_projects
+from utils.storage import get_tasks
 from utils.storage import upsert_document, upsert_project
 from utils.docx import write_document_docx
 from utils.file_types import detect_mime_type, detect_source_type
@@ -177,19 +177,19 @@ def main() -> int:
             return 0
 
         if args.command == "get-tasks":
-            tasks = fetch_tasks()
+            tasks = get_tasks()
             for task in tasks:
                 print(task)
             return 0
 
         if args.command == "list-projects":
-            projects = fetch_projects()
+            projects = get_projects()
             for project in projects:
                 print(project["name"])
             return 0
 
         if args.command == "list-documents":
-            documents = fetch_documents(args.project_name)
+            documents = get_documents(args.project_name)
             for document in documents:
                 print(
                     {
