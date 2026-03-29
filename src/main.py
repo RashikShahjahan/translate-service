@@ -1,5 +1,4 @@
-import argparse
-import logging
+from argparse import ArgumentParser
 from pathlib import Path
 
 from utils.storage import get_completed_translations
@@ -9,10 +8,10 @@ from utils.storage import get_tasks
 from utils.storage import upsert_document, upsert_project
 from utils.docx import write_document_docx
 from utils.file_types import detect_mime_type, detect_source_type
-from utils.logging_utils import configure_logging
+from utils.logging_utils import configure_logging, get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def prepare_task(
@@ -113,8 +112,8 @@ def publish_project_docx(project_name: str, output_path: str | None = None) -> l
     return outputs
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+def build_parser() -> ArgumentParser:
+    parser = ArgumentParser(
         description="Manage translation projects and queued tasks."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

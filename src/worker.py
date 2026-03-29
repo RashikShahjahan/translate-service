@@ -1,8 +1,7 @@
-import logging
-import os
-import time
+from os import getenv, name
+from time import sleep, monotonic
 
-import psutil
+from psutil import virtual_memory
 from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
@@ -12,27 +11,27 @@ from utils.storage import (
     recover_stale_leases,
     requeue_document,
 )
-from utils.logging_utils import configure_logging
+from utils.logging_utils import configure_logging, get_logger
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-IDLE_SLEEP_SECONDS = float(os.getenv("IDLE_SLEEP_SECONDS", "60"))
-TRANSLATION_BATCH_SIZE = int(os.getenv("TRANSLATION_BATCH_SIZE", "4"))
+IDLE_SLEEP_SECONDS = float(getenv("IDLE_SLEEP_SECONDS", "60"))
+TRANSLATION_BATCH_SIZE = int(getenv("TRANSLATION_BATCH_SIZE", "4"))
 TRANSLATION_MIN_AVAILABLE_MEMORY_MB = float(
-    os.getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
+    getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
 )
-LEASE_TIMEOUT_SECONDS = float(os.getenv("LEASE_TIMEOUT_SECONDS", "900"))
+LEASE_TIMEOUT_SECONDS = float(getenv("LEASE_TIMEOUT_SECONDS", "900"))
 TRANSLATION_IDLE_UNLOAD_SECONDS = float(
-    os.getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
+    getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
 )
-RETRY_BACKOFF_BASE_SECONDS = float(os.getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
-RETRY_BACKOFF_MAX_SECONDS = float(os.getenv("RETRY_BACKOFF_MAX_SECONDS", "300"))
+RETRY_BACKOFF_BASE_SECONDS = float(getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
+RETRY_BACKOFF_MAX_SECONDS = float(getenv("RETRY_BACKOFF_MAX_SECONDS", "300"))
 
 
 def current_available_physical_memory_mb() -> float:
-    return float(psutil.virtual_memory().available) / (1024 * 1024)
+    return float(virtual_memory().available) / (1024 * 1024)
 
 
 def translation_memory_gate_open() -> bool:
@@ -141,7 +140,7 @@ if __name__ == "__main__":
     configure_logging()
     logger.info(
         "Worker starting. Press Ctrl+%s to exit",
-        "Break" if os.name == "nt" else "C",
+        "Break" if name == "nt" else "C",
     )
     last_translation_at: float | None = None
 
@@ -149,11 +148,11 @@ if __name__ == "__main__":
         while True:
             processed_work, processed_translation = process_once(TRANSLATION_BATCH_SIZE)
             if processed_translation:
-                last_translation_at = time.monotonic()
+                last_translation_at = monotonic()
             else:
                if last_translation_at is None:
                     continue
-               idle_for_seconds = time.monotonic() - last_translation_at
+               idle_for_seconds = monotonic() - last_translation_at
                if idle_for_seconds >= TRANSLATION_IDLE_UNLOAD_SECONDS:
                     from utils.translation import unload_model
 
@@ -161,7 +160,7 @@ if __name__ == "__main__":
             if processed_work:
                 continue
             else:
-                time.sleep(IDLE_SLEEP_SECONDS)
+                sleep(IDLE_SLEEP_SECONDS)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Worker stopped")
     except Exception:

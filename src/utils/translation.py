@@ -1,19 +1,22 @@
-import gc
-import logging
-import os
+from gc import collect
+from os import getenv
 
 from dotenv import load_dotenv
 
+
+from utils.logging_utils import get_logger
+
+
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-TRANSLATION_MODEL = os.getenv(
+TRANSLATION_MODEL = getenv(
     "TRANSLATION_MODEL",
     "mlx-community/translategemma-12b-it-4bit",
 )
-SOURCE_LANG_CODE = os.getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
-TARGET_LANG_CODE = os.getenv("TARGET_LANG_CODE", "en").strip() or "en"
+SOURCE_LANG_CODE = getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
+TARGET_LANG_CODE = getenv("TARGET_LANG_CODE", "en").strip() or "en"
 _MODEL = None
 _TOKENIZER = None
 
@@ -32,12 +35,12 @@ def get_model_and_tokenizer():
 
 def unload_model():
     global _MODEL, _TOKENIZER
-    import mlx.core as mx
+    from mlx.core import clear_cache
 
     _MODEL = None
     _TOKENIZER = None
-    gc.collect()
-    mx.clear_cache()
+    collect()
+    clear_cache()
     logger.info("Unloaded translation model and cleared MLX cache")
 
 
