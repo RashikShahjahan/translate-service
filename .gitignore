@@ -9,6 +9,5 @@ ocr/
 test-data/
 .DS_Store
 *.docx
-artifacts/
 output/
 logs/
