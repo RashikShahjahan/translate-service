@@ -1,7 +1,6 @@
 from os import getenv, name
 from time import sleep, monotonic
 
-from psutil import virtual_memory
 from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
@@ -19,32 +18,12 @@ logger = get_logger(__name__)
 
 IDLE_SLEEP_SECONDS = float(getenv("IDLE_SLEEP_SECONDS", "60"))
 TRANSLATION_BATCH_SIZE = int(getenv("TRANSLATION_BATCH_SIZE", "4"))
-TRANSLATION_MIN_AVAILABLE_MEMORY_MB = float(
-    getenv("TRANSLATION_MIN_AVAILABLE_MEMORY_MB", "8192")
-)
 LEASE_TIMEOUT_SECONDS = float(getenv("LEASE_TIMEOUT_SECONDS", "900"))
 TRANSLATION_IDLE_UNLOAD_SECONDS = float(
     getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
 )
 RETRY_BACKOFF_BASE_SECONDS = float(getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
 RETRY_BACKOFF_MAX_SECONDS = float(getenv("RETRY_BACKOFF_MAX_SECONDS", "300"))
-
-
-def current_available_physical_memory_mb() -> float:
-    return float(virtual_memory().available) / (1024 * 1024)
-
-
-def translation_memory_gate_open() -> bool:
-    available_memory_mb = current_available_physical_memory_mb()
-    physical_gate_open = available_memory_mb >= TRANSLATION_MIN_AVAILABLE_MEMORY_MB
-    logger.info(
-        "Translation memory gate %s: available=%.2fMB threshold=%.2fMB",
-        "open" if physical_gate_open else "closed",
-        available_memory_mb,
-        TRANSLATION_MIN_AVAILABLE_MEMORY_MB,
-    )
-    gate_open = physical_gate_open
-    return gate_open
 
 
 def retry_backoff_seconds(retry_count: int) -> float:
@@ -54,9 +33,6 @@ def retry_backoff_seconds(retry_count: int) -> float:
 
 
 def start_translation(translation_batch_size: int):
-    if not translation_memory_gate_open():
-        return False
-
     leased_items = lease_documents_for_translation(translation_batch_size)
     input_texts = [str(item["input_text"]).strip() for item in leased_items]
     if not input_texts:
@@ -150,13 +126,14 @@ if __name__ == "__main__":
             if processed_translation:
                 last_translation_at = monotonic()
             else:
-               if last_translation_at is None:
+                if last_translation_at is None:
                     continue
-               idle_for_seconds = monotonic() - last_translation_at
-               if idle_for_seconds >= TRANSLATION_IDLE_UNLOAD_SECONDS:
+                idle_for_seconds = monotonic() - last_translation_at
+                if idle_for_seconds >= TRANSLATION_IDLE_UNLOAD_SECONDS:
                     from utils.translation import unload_model
 
                     unload_model()
+                    last_translation_at = None
             if processed_work:
                 continue
             else:
