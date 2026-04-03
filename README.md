@@ -5,7 +5,6 @@
 - `SOURCE_LANG_CODE`: Source language code for translation. Default: `bn`
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
 - `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per run. Default: `4`
-- `TRANSLATION_MIN_AVAILABLE_MEMORY_MB`: Only start translation when current available memory is above this threshold. Default: `8192`
 - `TRANSLATION_IDLE_UNLOAD_SECONDS`: Unload the translation model after this many seconds without translation work. Set to `0` to disable unloading. Default: `15`
 - `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
 - `RETRY_BACKOFF_BASE_SECONDS`: Base delay for failed OCR/translation retries. Each failure doubles the delay from this base. Default: `30`
@@ -49,19 +48,20 @@ For a persistent macOS background service, use `launchd`:
 
 1. Run the installer from the repo root:
    - `bash scripts/install_launch_agent.sh`
-2. The installer writes `~/Library/LaunchAgents/local.translate-service.worker.plist` using the current repo path and your absolute `uv` binary path, then bootstraps and starts it.
-3. Check status or logs:
-   - `launchctl list | grep translate-service`
-   - `launchctl print gui/$(id -u)/local.translate-service.worker`
-   - `tail -f logs/translate_service.log`
-   - `tail -f logs/worker.stderr.log`
-4. Stop or unload it later:
-   - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
-5. After changing worker code or environment variables, restart the LaunchAgent so it picks up the new code:
-   - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
-   - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.translate-service.worker.plist`
+2. The installer writes `~/Library/LaunchAgents/local.translate-service.worker.plist` using the current repo path and your absolute `uv` binary path.
+3. That LaunchAgent runs a small wrapper script on load and every day at `00:00`. The wrapper starts the worker only if the current local time is inside the active window and stops it at the end of the window. Defaults: `00:00` to `08:00`.
+4. Check status or logs:
+    - `launchctl list | grep translate-service`
+    - `launchctl print gui/$(id -u)/local.translate-service.worker`
+    - `tail -f logs/translate_service.log`
+    - `tail -f logs/worker.stderr.log`
+5. Stop or unload it later:
+    - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
+6. After changing worker code or environment variables, restart the LaunchAgent so it picks up the new code:
+    - `launchctl bootout gui/$(id -u)/local.translate-service.worker`
+    - `bash scripts/install_launch_agent.sh`
 
-The LaunchAgent template lives at `launchd/local.translate-service.worker.plist` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. The installer replaces those with your current checkout path and resolved `uv` binary. The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent's stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
+The LaunchAgent template lives under `launchd/` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. It also sets default `WORKER_ACTIVE_START_TIME=00:00` and `WORKER_ACTIVE_END_TIME=08:00` in the LaunchAgent environment. Scheduling is managed by `launchd` plus [`run_scheduled_worker.sh`](/Users/rashik/translate-service/scripts/run_scheduled_worker.sh). The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
 
 ## Publish output
 
@@ -75,4 +75,3 @@ The LaunchAgent template lives at `launchd/local.translate-service.worker.plist`
 2. Batch size from from 1 to 4
 3. num_draft tokens for speculative decoding from 2 to 8
 4. Combine speculative decoding with  batching ( Currently not supported in mlx-lm, will need to fork)
-

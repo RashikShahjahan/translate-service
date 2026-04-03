@@ -7,20 +7,33 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>__UV_BIN__</string>
-      <string>run</string>
-      <string>python</string>
-      <string>src/worker.py</string>
+      <string>/bin/bash</string>
+      <string>scripts/run_scheduled_worker.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>__WORKDIR__</string>
 
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>UV_BIN</key>
+      <string>__UV_BIN__</string>
+      <key>WORKER_ACTIVE_START_TIME</key>
+      <string>00:00</string>
+      <key>WORKER_ACTIVE_END_TIME</key>
+      <string>08:00</string>
+    </dict>
+
     <key>RunAtLoad</key>
     <true/>
 
-    <key>KeepAlive</key>
-    <true/>
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>0</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
 
     <key>StandardOutPath</key>
     <string>__WORKDIR__/logs/worker.stdout.log</string>
