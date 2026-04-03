@@ -11,3 +11,4 @@ test-data/
 *.docx
 output/
 logs/
+artifacts/
