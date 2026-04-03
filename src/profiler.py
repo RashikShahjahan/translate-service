@@ -12,9 +12,9 @@ DEFAULT_OUTPUT_DIR = ROOT / "artifacts" / "profiler"
 BASE_CHUNK_SIZE = 100
 PASSAGE_SIZE = 1000
 PASSAGE_COUNT = 4
-DEFAULT_CHUNK_SIZES = [100, 200, 500, 1000]
+DEFAULT_CHUNK_SIZES = [100, 200, 500, 1000, 1500, 2000]
 DEFAULT_BATCH_SIZES = [1,2,4]
-DEFAULT_NUM_DRAFT_TOKENS = range(2, 8)
+DEFAULT_NUM_DRAFT_TOKENS = range(1, 8)
 PROFILE_CHOICES = ("chunk", "batch", "speculative", "all")
 
 if str(SRC) not in sys.path:
@@ -124,6 +124,10 @@ def profile(method_name, fn):
     }
 
 
+def warmup(fn):
+    run_profile(fn)
+
+
 def load_inputs(chunk_size: int):
     passages = load_passages()
     inputs = build_inputs(passages, chunk_size)
@@ -209,6 +213,10 @@ def run_translate_profile(chunk_sizes):
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
         print({"chunk_size": chunk_size, "method": "translate"})
+        if inputs:
+            warmup(
+                lambda source_text=inputs[0]["source_text"]: translate(source_text)
+            )
         for item in inputs:
             result = profile(
                 "translate",
@@ -266,6 +274,12 @@ def run_batch_profile(batch_sizes):
                 "batch_size": batch_size,
             }
         )
+        if inputs:
+            warmup(
+                lambda batch_texts=[inputs[0]["source_text"]]: translate_batch(
+                    batch_texts
+                )
+            )
         for batch in chunked(inputs, batch_size):
             result = profile(
                 "translate_batch",
@@ -330,6 +344,15 @@ def run_speculative_profile(num_draft_tokens_values):
                 "num_draft_tokens": num_draft_tokens,
             }
         )
+        if inputs:
+            warmup(
+                lambda source_text=inputs[0][
+                    "source_text"
+                ], num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
+                    source_text,
+                    num_draft_tokens=num_draft_tokens,
+                )
+            )
         for item in inputs:
             result = profile(
                 "translate_speculative_decoding",
