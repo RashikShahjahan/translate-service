@@ -2,11 +2,13 @@ import argparse
 import json
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 PASSAGES_PATH = ROOT / "artifacts" / "profiler_passages.json"
+DEFAULT_OUTPUT_DIR = ROOT / "artifacts" / "profiler"
 BASE_CHUNK_SIZE = 100
 PASSAGE_SIZE = 1000
 PASSAGE_COUNT = 4
@@ -134,6 +136,58 @@ def load_inputs(chunk_size: int):
     return inputs
 
 
+def make_run_name():
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def prepare_output_dir(base_dir: Path, run_name: str) -> Path:
+    output_dir = base_dir / run_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def write_results(output_dir: Path, payload: dict):
+    results_path = output_dir / "results.json"
+    results_path.write_text(json.dumps(payload, indent=2) + "\n")
+    return results_path
+
+
+def plot_profile(output_dir: Path, profile_name: str, x_key: str, x_label: str, totals: list[dict]):
+    if not totals:
+        return None
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    x_values = [item[x_key] for item in totals]
+    elapsed_values = [round(item["elapsed"], 4) for item in totals]
+    memory_values = [item["peak_metal_mb"] for item in totals]
+
+    figure, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    axes[0].plot(x_values, elapsed_values, marker="o", linewidth=2)
+    axes[0].set_title("Total Runtime")
+    axes[0].set_xlabel(x_label)
+    axes[0].set_ylabel("Seconds")
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(x_values, memory_values, marker="o", linewidth=2, color="tab:orange")
+    axes[1].set_title("Peak Metal Memory")
+    axes[1].set_xlabel(x_label)
+    axes[1].set_ylabel("MB")
+    axes[1].grid(True, alpha=0.3)
+
+    figure.suptitle(f"{profile_name.title()} Profile")
+    figure.tight_layout()
+
+    plot_path = output_dir / f"{profile_name}.png"
+    figure.savefig(plot_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+    return plot_path
+
+
 def print_total(total, method_name, **metadata):
     print(
         {
@@ -148,6 +202,8 @@ def print_total(total, method_name, **metadata):
 def run_translate_profile(chunk_sizes):
     from utils.translation import translate
 
+    samples = []
+    totals = []
     for chunk_size in chunk_sizes:
         inputs = load_inputs(chunk_size)
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
@@ -162,6 +218,15 @@ def run_translate_profile(chunk_sizes):
             total["peak_metal_mb"] = max(
                 total["peak_metal_mb"], result["peak_metal_mb"]
             )
+            samples.append(
+                {
+                    "chunk_size": chunk_size,
+                    "chunk_index": item["chunk_index"],
+                    "method": result["method"],
+                    "elapsed": round(result["elapsed"], 4),
+                    "peak_metal_mb": result["peak_metal_mb"],
+                }
+            )
             print(
                 {
                     "chunk_size": chunk_size,
@@ -172,13 +237,25 @@ def run_translate_profile(chunk_sizes):
                 }
             )
 
+        totals.append(
+            {
+                "chunk_size": chunk_size,
+                "method": "translate",
+                "elapsed": round(total["elapsed"], 4),
+                "peak_metal_mb": total["peak_metal_mb"],
+            }
+        )
         print_total(total, "translate", chunk_size=chunk_size)
+
+    return {"samples": samples, "totals": totals}
 
 
 def run_batch_profile(batch_sizes):
     from utils.translation import translate_batch
 
     inputs = load_inputs(PASSAGE_SIZE)
+    samples = []
+    totals = []
     for batch_size in batch_sizes:
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
@@ -200,6 +277,15 @@ def run_batch_profile(batch_sizes):
             total["peak_metal_mb"] = max(
                 total["peak_metal_mb"], result["peak_metal_mb"]
             )
+            samples.append(
+                {
+                    "batch_size": batch_size,
+                    "chunks": [item["chunk_index"] for item in batch],
+                    "method": result["method"],
+                    "elapsed": round(result["elapsed"], 4),
+                    "peak_metal_mb": result["peak_metal_mb"],
+                }
+            )
             print(
                 {
                     "chunks": [item["chunk_index"] for item in batch],
@@ -215,11 +301,25 @@ def run_batch_profile(batch_sizes):
             batch_size=batch_size,
         )
 
+        totals.append(
+            {
+                "batch_size": batch_size,
+                "chunk_size": PASSAGE_SIZE,
+                "method": "translate_batch",
+                "elapsed": round(total["elapsed"], 4),
+                "peak_metal_mb": total["peak_metal_mb"],
+            }
+        )
+
+    return {"samples": samples, "totals": totals}
+
 
 def run_speculative_profile(num_draft_tokens_values):
     from utils.translation import translate_speculative_decoding
 
     inputs = load_inputs(PASSAGE_SIZE)
+    samples = []
+    totals = []
     for num_draft_tokens in num_draft_tokens_values:
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
@@ -244,6 +344,15 @@ def run_speculative_profile(num_draft_tokens_values):
             total["peak_metal_mb"] = max(
                 total["peak_metal_mb"], result["peak_metal_mb"]
             )
+            samples.append(
+                {
+                    "chunk_index": item["chunk_index"],
+                    "num_draft_tokens": num_draft_tokens,
+                    "method": result["method"],
+                    "elapsed": round(result["elapsed"], 4),
+                    "peak_metal_mb": result["peak_metal_mb"],
+                }
+            )
             print(
                 {
                     "chunk": item["chunk_index"],
@@ -259,6 +368,18 @@ def run_speculative_profile(num_draft_tokens_values):
             chunk_size=PASSAGE_SIZE,
             num_draft_tokens=num_draft_tokens,
         )
+
+        totals.append(
+            {
+                "num_draft_tokens": num_draft_tokens,
+                "chunk_size": PASSAGE_SIZE,
+                "method": "translate_speculative_decoding",
+                "elapsed": round(total["elapsed"], 4),
+                "peak_metal_mb": total["peak_metal_mb"],
+            }
+        )
+
+    return {"samples": samples, "totals": totals}
 
 
 def parse_args():
@@ -292,20 +413,71 @@ def parse_args():
         default=list(DEFAULT_NUM_DRAFT_TOKENS),
         help="Draft token counts used by the speculative profile.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Base directory where profiler JSON and plots are written.",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional profiler run name. Defaults to a timestamp.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    run_name = args.run_name or make_run_name()
+    output_dir = prepare_output_dir(args.output_dir, run_name)
+    results = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "profile": args.profile,
+        "config": {
+            "chunk_sizes": args.chunk_sizes,
+            "batch_sizes": args.batch_sizes,
+            "num_draft_tokens": args.num_draft_tokens,
+        },
+        "profiles": {},
+    }
+    plots = {}
 
     if args.profile in {"chunk", "all"}:
-        run_translate_profile(args.chunk_sizes)
+        results["profiles"]["chunk"] = run_translate_profile(args.chunk_sizes)
+        plots["chunk"] = plot_profile(
+            output_dir,
+            "chunk",
+            "chunk_size",
+            "Chunk Size",
+            results["profiles"]["chunk"]["totals"],
+        )
 
     if args.profile in {"batch", "all"}:
-        run_batch_profile(args.batch_sizes)
+        results["profiles"]["batch"] = run_batch_profile(args.batch_sizes)
+        plots["batch"] = plot_profile(
+            output_dir,
+            "batch",
+            "batch_size",
+            "Batch Size",
+            results["profiles"]["batch"]["totals"],
+        )
 
     if args.profile in {"speculative", "all"}:
-        run_speculative_profile(args.num_draft_tokens)
+        results["profiles"]["speculative"] = run_speculative_profile(args.num_draft_tokens)
+        plots["speculative"] = plot_profile(
+            output_dir,
+            "speculative",
+            "num_draft_tokens",
+            "Draft Tokens",
+            results["profiles"]["speculative"]["totals"],
+        )
+
+    results_path = write_results(output_dir, results)
+    print({"saved_results": str(results_path)})
+    for profile_name, plot_path in plots.items():
+        if plot_path is not None:
+            print({"saved_plot": str(plot_path), "profile": profile_name})
 
 
 if __name__ == "__main__":
