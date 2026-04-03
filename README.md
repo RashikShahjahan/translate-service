@@ -69,6 +69,10 @@ The LaunchAgent template lives at `launchd/local.translate-service.worker.plist`
 - The output path mirrors each stored `source_name`, replacing its original suffix with `.docx`.
 - Example: `uv run python src/main.py publish book output/book-en`
 
-## Stress test translation batches
+## Experiments
 
-- `uv run python scripts/stress_test_batch_translate.py`: Benchmark batch translation throughput and memory usage, then save a plot to `artifacts/stress_test_batch_translate.png`.
+1. Chunk size from 100 to 1000
+2. Batch size from from 1 to 4
+3. num_draft tokens for speculative decoding from 2 to 8
+4. Combine speculative decoding with  batching ( Currently not supported in mlx-lm, will need to fork)
+
