@@ -11,9 +11,9 @@ BASE_CHUNK_SIZE = 100
 PASSAGE_SIZE = 1000
 PASSAGE_COUNT = 4
 DEFAULT_CHUNK_SIZES = range(100, 1001, 100)
-DEFAULT_BATCH_SIZES = range(1, 4)
-DEFAULT_NUM_DRAFT_TOKENS = range(1, 5)
-PROFILE_CHOICES = ("translate", "batch", "speculative", "all")
+DEFAULT_BATCH_SIZES = [1,2,4]
+DEFAULT_NUM_DRAFT_TOKENS = range(2, 8)
+PROFILE_CHOICES = ("chunk", "batch", "speculative", "all")
 
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -175,17 +175,16 @@ def run_translate_profile(chunk_sizes):
         print_total(total, "translate", chunk_size=chunk_size)
 
 
-def run_batch_profile(chunk_sizes, batch_sizes):
+def run_batch_profile(batch_sizes):
     from utils.translation import translate_batch
 
-    chunk_size = chunk_sizes[0]
-    inputs = load_inputs(chunk_size)
+    inputs = load_inputs(PASSAGE_SIZE)
     for batch_size in batch_sizes:
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
         print(
             {
-                "chunk_size": chunk_size,
+                "chunk_size": PASSAGE_SIZE,
                 "method": "translate_batch",
                 "batch_size": batch_size,
             }
@@ -203,10 +202,7 @@ def run_batch_profile(chunk_sizes, batch_sizes):
             )
             print(
                 {
-                    "chunk_size": chunk_size,
                     "chunks": [item["chunk_index"] for item in batch],
-                    "method": result["method"],
-                    "batch_size": len(batch),
                     "seconds": round(result["elapsed"], 2),
                     "peak_metal_mb": result["peak_metal_mb"],
                 }
@@ -215,22 +211,21 @@ def run_batch_profile(chunk_sizes, batch_sizes):
         print_total(
             total,
             "translate_batch",
-            chunk_size=chunk_size,
+            chunk_size=PASSAGE_SIZE,
             batch_size=batch_size,
         )
 
 
-def run_speculative_profile(chunk_sizes, num_draft_tokens_values):
+def run_speculative_profile(num_draft_tokens_values):
     from utils.translation import translate_speculative_decoding
 
-    chunk_size = chunk_sizes[0]
-    inputs = load_inputs(chunk_size)
+    inputs = load_inputs(PASSAGE_SIZE)
     for num_draft_tokens in num_draft_tokens_values:
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
         print(
             {
-                "chunk_size": chunk_size,
+                "chunk_size": PASSAGE_SIZE,
                 "method": "translate_speculative_decoding",
                 "num_draft_tokens": num_draft_tokens,
             }
@@ -252,7 +247,6 @@ def run_speculative_profile(chunk_sizes, num_draft_tokens_values):
             print(
                 {
                     "chunk": item["chunk_index"],
-                    "method": result["method"],
                     "num_draft_tokens": num_draft_tokens,
                     "seconds": round(result["elapsed"], 2),
                     "peak_metal_mb": result["peak_metal_mb"],
@@ -262,7 +256,7 @@ def run_speculative_profile(chunk_sizes, num_draft_tokens_values):
         print_total(
             total,
             "translate_speculative_decoding",
-            chunk_size=chunk_size,
+            chunk_size=PASSAGE_SIZE,
             num_draft_tokens=num_draft_tokens,
         )
 
@@ -304,14 +298,14 @@ def parse_args():
 def main():
     args = parse_args()
 
-    if args.profile in {"translate", "all"}:
+    if args.profile in {"chunk", "all"}:
         run_translate_profile(args.chunk_sizes)
 
     if args.profile in {"batch", "all"}:
-        run_batch_profile(args.chunk_sizes, args.batch_sizes)
+        run_batch_profile(args.batch_sizes)
 
     if args.profile in {"speculative", "all"}:
-        run_speculative_profile(args.chunk_sizes, args.num_draft_tokens)
+        run_speculative_profile(args.num_draft_tokens)
 
 
 if __name__ == "__main__":

@@ -73,7 +73,6 @@ The LaunchAgent template lives at `launchd/local.translate-service.worker.plist`
 
 1. Chunk size from 100 to 1000
 2. Batch size from from 1 to 4
-3. Find optimal chunk and batch combo given max prompt token  4000 per request
-4. num_draft tokens for speculative decoding from 2 to 8
-5. Combine speculative decoding with  batching ( Currently not supported in mlx-lm, will need to fork)
+3. num_draft tokens for speculative decoding from 2 to 8
+4. Combine speculative decoding with  batching ( Currently not supported in mlx-lm, will need to fork)
 
