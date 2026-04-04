@@ -332,6 +332,7 @@ def run_speculative_profile(num_draft_tokens_values):
     from utils.translation import translate_speculative_decoding
 
     inputs = load_inputs(PASSAGE_SIZE)
+    speculative_input = inputs[:1]
     samples = []
     totals = []
     for num_draft_tokens in num_draft_tokens_values:
@@ -346,14 +347,14 @@ def run_speculative_profile(num_draft_tokens_values):
         )
         if inputs:
             warmup(
-                lambda source_text=inputs[0][
+                lambda source_text=speculative_input[0][
                     "source_text"
                 ], num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
                     source_text,
                     num_draft_tokens=num_draft_tokens,
                 )
             )
-        for item in inputs:
+        for item in speculative_input:
             result = profile(
                 "translate_speculative_decoding",
                 lambda source_text=item[
