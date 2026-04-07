@@ -16,7 +16,10 @@ DEFAULT_BATCH_SIZES = [1, 2, 4]
 DEFAULT_BATCH_CHUNK_SIZE = 500
 DEFAULT_SPECULATIVE_CHUNK_SIZE = 500
 DEFAULT_NUM_DRAFT_TOKENS = range(1, 8)
-PROFILE_CHOICES = ("chunk", "batch", "speculative", "all")
+DEFAULT_COMPARE_CHUNK_SIZE = 500
+DEFAULT_COMPARE_BATCH_SIZE = 4
+DEFAULT_COMPARE_NUM_DRAFT_TOKENS = 1
+PROFILE_CHOICES = ("chunk", "batch", "speculative", "compare", "all")
 
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -196,6 +199,42 @@ def plot_profile(output_dir: Path, profile_name: str, x_key: str, x_label: str, 
     figure.tight_layout()
 
     plot_path = output_dir / f"{profile_name}.png"
+    figure.savefig(plot_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+    return plot_path
+
+
+def plot_compare_profile(output_dir: Path, totals: list[dict]):
+    if not totals:
+        return None
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    methods = [item["method"] for item in totals]
+    elapsed_values = [round(item["elapsed"], 4) for item in totals]
+    memory_values = [item["peak_metal_mb"] for item in totals]
+
+    figure, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    axes[0].bar(methods, elapsed_values, color="tab:blue")
+    axes[0].set_title("Total Runtime")
+    axes[0].set_xlabel("Method")
+    axes[0].set_ylabel("Seconds")
+    axes[0].grid(True, axis="y", alpha=0.3)
+
+    axes[1].bar(methods, memory_values, color="tab:orange")
+    axes[1].set_title("Peak Metal Memory")
+    axes[1].set_xlabel("Method")
+    axes[1].set_ylabel("MB")
+    axes[1].grid(True, axis="y", alpha=0.3)
+
+    figure.suptitle("Compare Profile")
+    figure.tight_layout()
+
+    plot_path = output_dir / "compare.png"
     figure.savefig(plot_path, dpi=200, bbox_inches="tight")
     plt.close(figure)
     return plot_path
@@ -417,6 +456,197 @@ def run_speculative_profile(num_draft_tokens_values, chunk_size):
     return {"samples": samples, "totals": totals}
 
 
+def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
+    from utils.translation import (
+        translate,
+        translate_batch,
+        translate_speculative_decoding,
+    )
+
+    inputs, _ = load_inputs(chunk_size)
+    samples = []
+    totals = []
+
+    print(
+        {
+            "profile": "compare",
+            "chunk_size": chunk_size,
+            "batch_size": batch_size,
+            "num_draft_tokens": num_draft_tokens,
+        }
+    )
+
+    translate_total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
+    print({"chunk_size": chunk_size, "method": "translate"})
+    if inputs:
+        warmup(lambda source_text=inputs[0]["source_text"]: translate(source_text))
+    for item in inputs:
+        result = profile(
+            "translate",
+            lambda source_text=item["source_text"]: translate(source_text),
+        )
+        translate_total["elapsed"] += result["elapsed"]
+        translate_total["peak_metal_mb"] = max(
+            translate_total["peak_metal_mb"], result["peak_metal_mb"]
+        )
+        samples.append(
+            {
+                "profile": "compare",
+                "method": "translate",
+                "chunk_size": chunk_size,
+                "chunk_index": item["chunk_index"],
+                "elapsed": round(result["elapsed"], 4),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+        print(
+            {
+                "method": "translate",
+                "chunk": item["chunk_index"],
+                "seconds": round(result["elapsed"], 2),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+    print_total(translate_total, "translate", chunk_size=chunk_size)
+    totals.append(
+        {
+            "method": "translate",
+            "chunk_size": chunk_size,
+            "elapsed": round(translate_total["elapsed"], 4),
+            "peak_metal_mb": translate_total["peak_metal_mb"],
+        }
+    )
+
+    batch_total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
+    print(
+        {
+            "chunk_size": chunk_size,
+            "method": "translate_batch",
+            "batch_size": batch_size,
+        }
+    )
+    if inputs:
+        warmup(
+            lambda batch_texts=[
+                item["source_text"] for item in inputs[:batch_size]
+            ]: translate_batch(batch_texts)
+        )
+    for batch in chunked(inputs, batch_size):
+        result = profile(
+            "translate_batch",
+            lambda batch_texts=[item["source_text"] for item in batch]: translate_batch(
+                batch_texts
+            ),
+        )
+        batch_total["elapsed"] += result["elapsed"]
+        batch_total["peak_metal_mb"] = max(
+            batch_total["peak_metal_mb"], result["peak_metal_mb"]
+        )
+        samples.append(
+            {
+                "profile": "compare",
+                "method": "translate_batch",
+                "chunk_size": chunk_size,
+                "batch_size": batch_size,
+                "chunks": [item["chunk_index"] for item in batch],
+                "elapsed": round(result["elapsed"], 4),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+        print(
+            {
+                "method": "translate_batch",
+                "chunks": [item["chunk_index"] for item in batch],
+                "seconds": round(result["elapsed"], 2),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+    print_total(
+        batch_total,
+        "translate_batch",
+        chunk_size=chunk_size,
+        batch_size=batch_size,
+    )
+    totals.append(
+        {
+            "method": "translate_batch",
+            "chunk_size": chunk_size,
+            "batch_size": batch_size,
+            "elapsed": round(batch_total["elapsed"], 4),
+            "peak_metal_mb": batch_total["peak_metal_mb"],
+        }
+    )
+
+    speculative_total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
+    print(
+        {
+            "chunk_size": chunk_size,
+            "method": "translate_speculative_decoding",
+            "num_draft_tokens": num_draft_tokens,
+        }
+    )
+    if inputs:
+        warmup(
+            lambda source_text=inputs[0][
+                "source_text"
+            ]: translate_speculative_decoding(
+                source_text,
+                num_draft_tokens=num_draft_tokens,
+            )
+        )
+    for item in inputs:
+        result = profile(
+            "translate_speculative_decoding",
+            lambda source_text=item[
+                "source_text"
+            ]: translate_speculative_decoding(
+                source_text,
+                num_draft_tokens=num_draft_tokens,
+            ),
+        )
+        speculative_total["elapsed"] += result["elapsed"]
+        speculative_total["peak_metal_mb"] = max(
+            speculative_total["peak_metal_mb"], result["peak_metal_mb"]
+        )
+        samples.append(
+            {
+                "profile": "compare",
+                "method": "translate_speculative_decoding",
+                "chunk_size": chunk_size,
+                "num_draft_tokens": num_draft_tokens,
+                "chunk_index": item["chunk_index"],
+                "elapsed": round(result["elapsed"], 4),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+        print(
+            {
+                "method": "translate_speculative_decoding",
+                "chunk": item["chunk_index"],
+                "num_draft_tokens": num_draft_tokens,
+                "seconds": round(result["elapsed"], 2),
+                "peak_metal_mb": result["peak_metal_mb"],
+            }
+        )
+    print_total(
+        speculative_total,
+        "translate_speculative_decoding",
+        chunk_size=chunk_size,
+        num_draft_tokens=num_draft_tokens,
+    )
+    totals.append(
+        {
+            "method": "translate_speculative_decoding",
+            "chunk_size": chunk_size,
+            "num_draft_tokens": num_draft_tokens,
+            "elapsed": round(speculative_total["elapsed"], 4),
+            "peak_metal_mb": speculative_total["peak_metal_mb"],
+        }
+    )
+
+    return {"samples": samples, "totals": totals}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run translation profiling with selectable profile modes."
@@ -461,6 +691,24 @@ def parse_args():
         help="Token chunk size used by the speculative profile.",
     )
     parser.add_argument(
+        "--compare-chunk-size",
+        type=int,
+        default=DEFAULT_COMPARE_CHUNK_SIZE,
+        help="Token chunk size used by the compare profile.",
+    )
+    parser.add_argument(
+        "--compare-batch-size",
+        type=int,
+        default=DEFAULT_COMPARE_BATCH_SIZE,
+        help="Batch size used by the compare profile.",
+    )
+    parser.add_argument(
+        "--compare-num-draft-tokens",
+        type=int,
+        default=DEFAULT_COMPARE_NUM_DRAFT_TOKENS,
+        help="Draft token count used by the compare profile.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
@@ -474,8 +722,31 @@ def parse_args():
     return parser.parse_args()
 
 
+def validate_args(args):
+    positive_list_options = {
+        "--chunk-sizes": args.chunk_sizes,
+        "--batch-sizes": args.batch_sizes,
+        "--num-draft-tokens": args.num_draft_tokens,
+    }
+    for option_name, values in positive_list_options.items():
+        if any(value <= 0 for value in values):
+            raise ValueError(f"{option_name} values must all be positive integers")
+
+    positive_scalar_options = {
+        "--batch-chunk-size": args.batch_chunk_size,
+        "--speculative-chunk-size": args.speculative_chunk_size,
+        "--compare-chunk-size": args.compare_chunk_size,
+        "--compare-batch-size": args.compare_batch_size,
+        "--compare-num-draft-tokens": args.compare_num_draft_tokens,
+    }
+    for option_name, value in positive_scalar_options.items():
+        if value <= 0:
+            raise ValueError(f"{option_name} must be a positive integer")
+
+
 def main():
     args = parse_args()
+    validate_args(args)
     run_name = args.run_name or make_run_name()
     output_dir = prepare_output_dir(args.output_dir, run_name)
     results = {
@@ -487,6 +758,9 @@ def main():
             "batch_chunk_size": args.batch_chunk_size,
             "num_draft_tokens": args.num_draft_tokens,
             "speculative_chunk_size": args.speculative_chunk_size,
+            "compare_chunk_size": args.compare_chunk_size,
+            "compare_batch_size": args.compare_batch_size,
+            "compare_num_draft_tokens": args.compare_num_draft_tokens,
         },
         "profiles": {},
     }
@@ -524,6 +798,17 @@ def main():
             "num_draft_tokens",
             "Draft Tokens",
             results["profiles"]["speculative"]["totals"],
+        )
+
+    if args.profile in {"compare", "all"}:
+        results["profiles"]["compare"] = run_compare_profile(
+            args.compare_chunk_size,
+            args.compare_batch_size,
+            args.compare_num_draft_tokens,
+        )
+        plots["compare"] = plot_compare_profile(
+            output_dir,
+            results["profiles"]["compare"]["totals"],
         )
 
     results_path = write_results(output_dir, results)
