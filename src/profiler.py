@@ -10,10 +10,11 @@ SRC = ROOT / "src"
 PASSAGES_PATH = ROOT / "artifacts" / "profiler_passages.json"
 DEFAULT_OUTPUT_DIR = ROOT / "artifacts" / "profiler"
 BASE_CHUNK_SIZE = 100
-PASSAGE_SIZE = 1000
 PASSAGE_COUNT = 4
-DEFAULT_CHUNK_SIZES = [100, 200, 500, 1000]
-DEFAULT_BATCH_SIZES = [1,2,4]
+DEFAULT_CHUNK_SIZES = [100, 200, 500, 1000, 2000]
+DEFAULT_BATCH_SIZES = [1, 2, 4]
+DEFAULT_BATCH_CHUNK_SIZE = 500
+DEFAULT_SPECULATIVE_CHUNK_SIZE = 500
 DEFAULT_NUM_DRAFT_TOKENS = range(1, 8)
 PROFILE_CHOICES = ("chunk", "batch", "speculative", "all")
 
@@ -33,22 +34,27 @@ def mb(value):
     return round(value / 1024 / 1024, 1)
 
 
-def load_passages() -> list[dict]:
+def load_passages() -> tuple[list[dict], int, int]:
     if not PASSAGES_PATH.exists():
         raise ValueError(
             f"Profiler passages JSON not found: {PASSAGES_PATH}"
         )
 
     payload = json.loads(PASSAGES_PATH.read_text())
-    if payload.get("base_chunk_size") != BASE_CHUNK_SIZE:
+    base_chunk_size = payload.get("base_chunk_size")
+    if base_chunk_size != BASE_CHUNK_SIZE:
         raise ValueError(
-            f"{PASSAGES_PATH} has base_chunk_size={payload.get('base_chunk_size')}; "
+            f"{PASSAGES_PATH} has base_chunk_size={base_chunk_size}; "
             f"expected {BASE_CHUNK_SIZE}"
         )
-    if payload.get("passage_size") != PASSAGE_SIZE:
+    passage_size = payload.get("passage_size")
+    if not isinstance(passage_size, int) or passage_size <= 0:
         raise ValueError(
-            f"{PASSAGES_PATH} has passage_size={payload.get('passage_size')}; "
-            f"expected {PASSAGE_SIZE}"
+            f"{PASSAGES_PATH} has invalid passage_size={passage_size}"
+        )
+    if passage_size % base_chunk_size != 0:
+        raise ValueError(
+            f"{PASSAGES_PATH} has passage_size={passage_size}; expected a multiple of {base_chunk_size}"
         )
 
     passages = payload.get("passages", [])
@@ -56,27 +62,30 @@ def load_passages() -> list[dict]:
         raise ValueError(
             f"{PASSAGES_PATH} has {len(passages)} passages; expected {PASSAGE_COUNT}"
         )
+    expected_chunk_count = passage_size // base_chunk_size
     for passage in passages:
         base_chunks = passage.get("base_chunks", [])
-        if len(base_chunks) != PASSAGE_SIZE // BASE_CHUNK_SIZE:
+        if len(base_chunks) != expected_chunk_count:
             raise ValueError(
                 f"Passage {passage.get('passage_index')} has {len(base_chunks)} "
-                f"base chunks; expected {PASSAGE_SIZE // BASE_CHUNK_SIZE}"
+                f"base chunks; expected {expected_chunk_count}"
             )
-    return passages
+    return passages, base_chunk_size, passage_size
 
 
-def build_inputs(passages: list[dict], chunk_size: int) -> list[dict]:
-    if chunk_size % BASE_CHUNK_SIZE != 0:
+def build_inputs(
+    passages: list[dict], chunk_size: int, base_chunk_size: int, passage_size: int
+) -> list[dict]:
+    if chunk_size % base_chunk_size != 0:
         raise ValueError(
-            f"Chunk size {chunk_size} must be a multiple of {BASE_CHUNK_SIZE}"
+            f"Chunk size {chunk_size} must be a multiple of {base_chunk_size}"
         )
-    if chunk_size > PASSAGE_SIZE:
+    if chunk_size > passage_size:
         raise ValueError(
-            f"Chunk size {chunk_size} cannot exceed passage size {PASSAGE_SIZE}"
+            f"Chunk size {chunk_size} cannot exceed passage size {passage_size}"
         )
 
-    chunks_per_input = chunk_size // BASE_CHUNK_SIZE
+    chunks_per_input = chunk_size // base_chunk_size
     inputs = []
     global_chunk_index = 1
     for passage in passages:
@@ -129,15 +138,15 @@ def warmup(fn):
 
 
 def load_inputs(chunk_size: int):
-    passages = load_passages()
-    inputs = build_inputs(passages, chunk_size)
+    passages, base_chunk_size, passage_size = load_passages()
+    inputs = build_inputs(passages, chunk_size, base_chunk_size, passage_size)
 
     if not inputs:
         raise ValueError(
             f"No non-empty token chunks produced from {PASSAGES_PATH} at chunk size {chunk_size}"
         )
 
-    return inputs
+    return inputs, passage_size
 
 
 def make_run_name():
@@ -209,7 +218,7 @@ def run_translate_profile(chunk_sizes):
     samples = []
     totals = []
     for chunk_size in chunk_sizes:
-        inputs = load_inputs(chunk_size)
+        inputs, _ = load_inputs(chunk_size)
         total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
 
         print({"chunk_size": chunk_size, "method": "translate"})
@@ -258,10 +267,10 @@ def run_translate_profile(chunk_sizes):
     return {"samples": samples, "totals": totals}
 
 
-def run_batch_profile(batch_sizes):
+def run_batch_profile(batch_sizes, chunk_size):
     from utils.translation import translate_batch
 
-    inputs = load_inputs(PASSAGE_SIZE)
+    inputs, _ = load_inputs(chunk_size)
     samples = []
     totals = []
     for batch_size in batch_sizes:
@@ -269,7 +278,7 @@ def run_batch_profile(batch_sizes):
 
         print(
             {
-                "chunk_size": PASSAGE_SIZE,
+                "chunk_size": chunk_size,
                 "method": "translate_batch",
                 "batch_size": batch_size,
             }
@@ -294,6 +303,7 @@ def run_batch_profile(batch_sizes):
             samples.append(
                 {
                     "batch_size": batch_size,
+                    "chunk_size": chunk_size,
                     "chunks": [item["chunk_index"] for item in batch],
                     "method": result["method"],
                     "elapsed": round(result["elapsed"], 4),
@@ -311,14 +321,14 @@ def run_batch_profile(batch_sizes):
         print_total(
             total,
             "translate_batch",
-            chunk_size=PASSAGE_SIZE,
+            chunk_size=chunk_size,
             batch_size=batch_size,
         )
 
         totals.append(
             {
                 "batch_size": batch_size,
-                "chunk_size": PASSAGE_SIZE,
+                "chunk_size": chunk_size,
                 "method": "translate_batch",
                 "elapsed": round(total["elapsed"], 4),
                 "peak_metal_mb": total["peak_metal_mb"],
@@ -328,10 +338,10 @@ def run_batch_profile(batch_sizes):
     return {"samples": samples, "totals": totals}
 
 
-def run_speculative_profile(num_draft_tokens_values):
+def run_speculative_profile(num_draft_tokens_values, chunk_size):
     from utils.translation import translate_speculative_decoding
 
-    inputs = load_inputs(PASSAGE_SIZE)
+    inputs, _ = load_inputs(chunk_size)
     speculative_input = inputs[:1]
     samples = []
     totals = []
@@ -340,7 +350,7 @@ def run_speculative_profile(num_draft_tokens_values):
 
         print(
             {
-                "chunk_size": PASSAGE_SIZE,
+                "chunk_size": chunk_size,
                 "method": "translate_speculative_decoding",
                 "num_draft_tokens": num_draft_tokens,
             }
@@ -371,6 +381,7 @@ def run_speculative_profile(num_draft_tokens_values):
             samples.append(
                 {
                     "chunk_index": item["chunk_index"],
+                    "chunk_size": chunk_size,
                     "num_draft_tokens": num_draft_tokens,
                     "method": result["method"],
                     "elapsed": round(result["elapsed"], 4),
@@ -389,14 +400,14 @@ def run_speculative_profile(num_draft_tokens_values):
         print_total(
             total,
             "translate_speculative_decoding",
-            chunk_size=PASSAGE_SIZE,
+            chunk_size=chunk_size,
             num_draft_tokens=num_draft_tokens,
         )
 
         totals.append(
             {
                 "num_draft_tokens": num_draft_tokens,
-                "chunk_size": PASSAGE_SIZE,
+                "chunk_size": chunk_size,
                 "method": "translate_speculative_decoding",
                 "elapsed": round(total["elapsed"], 4),
                 "peak_metal_mb": total["peak_metal_mb"],
@@ -431,11 +442,23 @@ def parse_args():
         help="Batch sizes used by the batch profile.",
     )
     parser.add_argument(
+        "--batch-chunk-size",
+        type=int,
+        default=DEFAULT_BATCH_CHUNK_SIZE,
+        help="Token chunk size used by the batch profile.",
+    )
+    parser.add_argument(
         "--num-draft-tokens",
         type=int,
         nargs="+",
         default=list(DEFAULT_NUM_DRAFT_TOKENS),
         help="Draft token counts used by the speculative profile.",
+    )
+    parser.add_argument(
+        "--speculative-chunk-size",
+        type=int,
+        default=DEFAULT_SPECULATIVE_CHUNK_SIZE,
+        help="Token chunk size used by the speculative profile.",
     )
     parser.add_argument(
         "--output-dir",
@@ -461,7 +484,9 @@ def main():
         "config": {
             "chunk_sizes": args.chunk_sizes,
             "batch_sizes": args.batch_sizes,
+            "batch_chunk_size": args.batch_chunk_size,
             "num_draft_tokens": args.num_draft_tokens,
+            "speculative_chunk_size": args.speculative_chunk_size,
         },
         "profiles": {},
     }
@@ -478,7 +503,9 @@ def main():
         )
 
     if args.profile in {"batch", "all"}:
-        results["profiles"]["batch"] = run_batch_profile(args.batch_sizes)
+        results["profiles"]["batch"] = run_batch_profile(
+            args.batch_sizes, args.batch_chunk_size
+        )
         plots["batch"] = plot_profile(
             output_dir,
             "batch",
@@ -488,7 +515,9 @@ def main():
         )
 
     if args.profile in {"speculative", "all"}:
-        results["profiles"]["speculative"] = run_speculative_profile(args.num_draft_tokens)
+        results["profiles"]["speculative"] = run_speculative_profile(
+            args.num_draft_tokens, args.speculative_chunk_size
+        )
         plots["speculative"] = plot_profile(
             output_dir,
             "speculative",
