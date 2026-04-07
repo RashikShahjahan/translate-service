@@ -19,6 +19,7 @@ DEFAULT_NUM_DRAFT_TOKENS = range(1, 8)
 DEFAULT_COMPARE_CHUNK_SIZE = 500
 DEFAULT_COMPARE_BATCH_SIZE = 4
 DEFAULT_COMPARE_NUM_DRAFT_TOKENS = 1
+COMPARE_CHUNK_COUNT = 4
 PROFILE_CHOICES = ("chunk", "batch", "speculative", "compare", "all")
 
 if str(SRC) not in sys.path:
@@ -464,6 +465,7 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
     )
 
     inputs, _ = load_inputs(chunk_size)
+    compare_inputs = inputs[:COMPARE_CHUNK_COUNT]
     samples = []
     totals = []
 
@@ -473,14 +475,19 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
             "chunk_size": chunk_size,
             "batch_size": batch_size,
             "num_draft_tokens": num_draft_tokens,
+            "chunk_count": len(compare_inputs),
         }
     )
 
     translate_total = {"elapsed": 0.0, "peak_metal_mb": 0.0}
     print({"chunk_size": chunk_size, "method": "translate"})
-    if inputs:
-        warmup(lambda source_text=inputs[0]["source_text"]: translate(source_text))
-    for item in inputs:
+    if compare_inputs:
+        warmup(
+            lambda source_text=compare_inputs[0]["source_text"]: translate(
+                source_text
+            )
+        )
+    for item in compare_inputs:
         result = profile(
             "translate",
             lambda source_text=item["source_text"]: translate(source_text),
@@ -525,13 +532,13 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
             "batch_size": batch_size,
         }
     )
-    if inputs:
+    if compare_inputs:
         warmup(
             lambda batch_texts=[
-                item["source_text"] for item in inputs[:batch_size]
+                item["source_text"] for item in compare_inputs[:batch_size]
             ]: translate_batch(batch_texts)
         )
-    for batch in chunked(inputs, batch_size):
+    for batch in chunked(compare_inputs, batch_size):
         result = profile(
             "translate_batch",
             lambda batch_texts=[item["source_text"] for item in batch]: translate_batch(
@@ -585,16 +592,16 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
             "num_draft_tokens": num_draft_tokens,
         }
     )
-    if inputs:
+    if compare_inputs:
         warmup(
-            lambda source_text=inputs[0][
+            lambda source_text=compare_inputs[0][
                 "source_text"
             ]: translate_speculative_decoding(
                 source_text,
                 num_draft_tokens=num_draft_tokens,
             )
         )
-    for item in inputs:
+    for item in compare_inputs:
         result = profile(
             "translate_speculative_decoding",
             lambda source_text=item[
