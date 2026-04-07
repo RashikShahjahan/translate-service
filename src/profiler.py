@@ -169,6 +169,24 @@ def write_results(output_dir: Path, payload: dict):
     return results_path
 
 
+def set_memory_axis_limits(axis, memory_values: list[float]):
+    if not memory_values:
+        return
+
+    memory_min = min(memory_values)
+    memory_max = max(memory_values)
+    memory_range = memory_max - memory_min
+
+    # Memory should be read against a zero baseline. For near-flat runs,
+    # this avoids exaggerating tiny measurement noise as a trend.
+    axis.set_ylim(bottom=0)
+    if memory_range <= 1:
+        upper = max(memory_max * 1.05, memory_max + 64)
+    else:
+        upper = memory_max + max(memory_range * 0.1, 64)
+    axis.set_ylim(top=upper)
+
+
 def plot_profile(output_dir: Path, profile_name: str, x_key: str, x_label: str, totals: list[dict]):
     if not totals:
         return None
@@ -194,6 +212,7 @@ def plot_profile(output_dir: Path, profile_name: str, x_key: str, x_label: str, 
     axes[1].set_title("Peak Metal Memory")
     axes[1].set_xlabel(x_label)
     axes[1].set_ylabel("MB")
+    set_memory_axis_limits(axes[1], memory_values)
     axes[1].grid(True, alpha=0.3)
 
     figure.suptitle(f"{profile_name.title()} Profile")
@@ -230,6 +249,7 @@ def plot_compare_profile(output_dir: Path, totals: list[dict]):
     axes[1].set_title("Peak Metal Memory")
     axes[1].set_xlabel("Method")
     axes[1].set_ylabel("MB")
+    set_memory_axis_limits(axes[1], memory_values)
     axes[1].grid(True, axis="y", alpha=0.3)
 
     figure.suptitle("Compare Profile")

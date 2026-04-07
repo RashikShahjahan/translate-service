@@ -1,9 +1,6 @@
 from gc import collect
 from os import getenv
-
 from dotenv import load_dotenv
-
-
 from utils.logging_utils import get_logger
 
 
