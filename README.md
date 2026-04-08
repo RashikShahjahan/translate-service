@@ -1,16 +1,18 @@
 # Environment
 
-- `OCR_MODEL`: OCR model name. Default: `gemini-3.1-flash-lite-preview`  (Currently only supports gemini models)
-- `TRANSLATION_MODEL`: Translation model name. Default: `mlx-community/translategemma-12b-it-4bit` (Currently only supports translate-gemma models)
+- `GEMINI_API_KEY`: Required for OCR against the Gemini API.
+- `OCR_MODEL`: OCR model name. Default: `gemini-3.1-flash-lite-preview` (Currently only supports Gemini models.)
+- `TRANSLATION_MODEL`: Translation model name. Default: `mlx-community/translategemma-12b-it-4bit`
+- `DRAFT_TRANSLATION_MODEL`: Optional draft model used for speculative decoding helpers. Default: `mlx-community/translategemma-4b-it-4bit`
 - `SOURCE_LANG_CODE`: Source language code for translation. Default: `bn`
 - `TARGET_LANG_CODE`: Target language code for translation. Default: `en`
-- `TRANSLATION_BATCH_SIZE`: Number of queued text files to translate per run. Default: `4`
+- `TRANSLATION_BATCH_SIZE`: Number of queued documents to translate per worker batch. Default: `4`
 - `TRANSLATION_IDLE_UNLOAD_SECONDS`: Unload the translation model after this many seconds without translation work. Set to `0` to disable unloading. Default: `15`
 - `LEASE_TIMEOUT_SECONDS`: How long a document may stay in `processing_ocr` or `processing_translation` before the worker requeues it. Default: `900`
 - `RETRY_BACKOFF_BASE_SECONDS`: Base delay for failed OCR/translation retries. Each failure doubles the delay from this base. Default: `30`
 - `RETRY_BACKOFF_MAX_SECONDS`: Maximum delay for failed OCR/translation retries. Default: `300`
 - OCR or translation exceptions are also requeued automatically; the most recent error is kept on the task record in `error_message`.
-- `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `2`
+- `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `60`
 - `LOG_LEVEL`: Logging verbosity for CLI and worker runs. Default: `INFO`
 
 # Commands
@@ -24,6 +26,7 @@ Use `uv run ...` if you are working from the project environment.
 ## Queue work
 
 - `uv run python src/main.py add-tasks <project_name> <input...>`: Add one or more files or directories to a project and queue supported files for OCR/translation.
+- Supported inputs are files whose MIME type resolves to `image/*` or `text/*`. Directory inputs are scanned recursively.
 - Example: `uv run python src/main.py add-tasks book scans/page-001.jpg chapters/`
 
 ## Inspect queued and stored data
@@ -31,6 +34,7 @@ Use `uv run ...` if you are working from the project environment.
 - `uv run python src/main.py get-tasks`: Print the currently queued OCR and translation tasks, including `retry_count` and `next_attempt_at`.
 - `uv run python src/main.py list-projects`: Print all stored project names.
 - `uv run python src/main.py list-documents <project_name>`: Print stored documents for a project, including status and timestamps.
+- `uv run python src/main.py export <project_name> [output_dir]`: Write one `.docx` file per completed translated document. Defaults to `output/<project_name>/`.
 
 ## Run the worker
 
@@ -63,15 +67,3 @@ For a persistent macOS background service, use `launchd`:
 
 The LaunchAgent template lives under `launchd/` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. It also sets default `WORKER_ACTIVE_START_TIME=00:00` and `WORKER_ACTIVE_END_TIME=08:00` in the LaunchAgent environment. Scheduling is managed by `launchd` plus [`run_scheduled_worker.sh`](/Users/rashik/translate-service/scripts/run_scheduled_worker.sh). The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
 
-## Publish output
-
-- `uv run python src/main.py publish <project_name> [output_dir]`: Build one DOCX per completed translated document for a project. If `output_dir` is omitted, files are written under `output/<project_name>/`.
-- The output path mirrors each stored `source_name`, replacing its original suffix with `.docx`.
-- Example: `uv run python src/main.py publish book output/book-en`
-
-## Experiments
-
-1. Chunk size from 100 to 1000
-2. Batch size from from 1 to 4
-3. num_draft tokens for speculative decoding from 2 to 8
-4. Combine speculative decoding with  batching ( Currently not supported in mlx-lm, will need to fork)
