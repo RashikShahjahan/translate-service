@@ -40,6 +40,47 @@ Use `uv run ...` if you are working from the project environment.
 
 - `uv run python src/worker.py`: Start the long-running worker that performs OCR and translation until stopped.
 
+## Run the profiler
+
+Use the profiler to measure translation runtime and peak Metal memory across chunk sizes, batch sizes, and speculative decoding settings.
+
+- Prerequisite: `artifacts/profiler_passages.json` must exist. The profiler reads four fixed passages from that file and validates their chunk layout before running.
+- Default output location: `artifacts/profiler/<run_name>/`
+- Each run writes `results.json` plus one or more `.png` plots for the selected profile modes.
+
+Run all profile modes with default settings:
+
+- `uv run python src/profiler.py`
+
+Run a single profile mode:
+
+- `uv run python src/profiler.py --profile chunk`
+- `uv run python src/profiler.py --profile batch`
+- `uv run python src/profiler.py --profile speculative`
+- `uv run python src/profiler.py --profile compare`
+
+Common examples:
+
+- `uv run python src/profiler.py --profile chunk --chunk-sizes 100 200 500 1000`
+- `uv run python src/profiler.py --profile batch --batch-sizes 1 2 4 --batch-chunk-size 500`
+- `uv run python src/profiler.py --profile speculative --num-draft-tokens 1 2 3 4 --speculative-chunk-size 500`
+- `uv run python src/profiler.py --profile compare --compare-chunk-size 500 --compare-batch-size 4 --compare-num-draft-tokens 2`
+- `uv run python src/profiler.py --run-name baseline-apr08`
+- `uv run python src/profiler.py --output-dir artifacts/benchmarks`
+
+What each profile measures:
+
+- `chunk`: Runs `translate` across the requested `--chunk-sizes`.
+- `batch`: Runs `translate_batch` across the requested `--batch-sizes` at one `--batch-chunk-size`.
+- `speculative`: Runs `translate_speculative_decoding` across the requested `--num-draft-tokens` values at one `--speculative-chunk-size`.
+- `compare`: Compares `translate`, `translate_batch`, and `translate_speculative_decoding` on the same inputs using the `--compare-*` settings.
+
+Profiler notes:
+
+- Chunk sizes must be positive integers, multiples of the profiler passage base chunk size, and no larger than the stored passage size.
+- Batch sizes and draft token counts must be positive integers.
+- The profiler prints per-sample timing and memory summaries to stdout while running, then prints the saved result paths at the end.
+
 ## Run the worker in the background on macOS
 
 For a quick temporary background run from the repo root:
@@ -66,4 +107,3 @@ For a persistent macOS background service, use `launchd`:
     - `bash scripts/install_launch_agent.sh`
 
 The LaunchAgent template lives under `launchd/` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. It also sets default `WORKER_ACTIVE_START_TIME=00:00` and `WORKER_ACTIVE_END_TIME=08:00` in the LaunchAgent environment. Scheduling is managed by `launchd` plus [`run_scheduled_worker.sh`](/Users/rashik/translate-service/scripts/run_scheduled_worker.sh). The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
-
