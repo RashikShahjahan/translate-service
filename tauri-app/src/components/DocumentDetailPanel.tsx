@@ -47,6 +47,15 @@ function EyeIcon() {
   );
 }
 
+function RetryIcon() {
+  return (
+    <DetailActionIcon>
+      <path d="M15.5 8A5.5 5.5 0 1 0 16 12" />
+      <path d="M12.5 4.5h3V7.5" />
+    </DetailActionIcon>
+  );
+}
+
 type DetailActionButtonProps = {
   icon: ReactNode;
   label: string;
@@ -81,6 +90,8 @@ type DocumentDetailPanelProps = {
   onSelectNextDocument: (() => void) | null;
   selectedPosition: number;
   totalDocuments: number;
+  onRetryDocument: (() => void) | null;
+  retrying: boolean;
 };
 
 function DetailMeta(props: { label: string; value: string }) {
@@ -134,6 +145,12 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <DetailActionButton
+            icon={<RetryIcon />}
+            label={props.retrying ? "Retrying task" : "Retry failed task"}
+            onClick={props.onRetryDocument ?? undefined}
+            disabled={!props.onRetryDocument || props.retrying}
+          />
+          <DetailActionButton
             icon={<EyeIcon />}
             label={showMetadata ? "Hide details" : "Show details"}
             onClick={() => setShowMetadata((current) => !current)}
@@ -161,6 +178,18 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-rose-100">
               {props.detail.errorMessage.trim()}
             </pre>
+            {props.onRetryDocument ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={props.onRetryDocument}
+                  disabled={props.retrying}
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {props.retrying ? "Retrying..." : "Retry now"}
+                </button>
+              </div>
+            ) : null}
           </section>
         ) : null}
 

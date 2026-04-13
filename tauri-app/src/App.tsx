@@ -39,6 +39,10 @@ function messageFromError(error: unknown) {
   return "Something went wrong.";
 }
 
+function canRetryDocument(document: Pick<DocumentRow, "errorMessage" | "status"> | Pick<DocumentDetail, "errorMessage" | "status">) {
+  return Boolean(document.errorMessage) && !document.status.startsWith("processing_");
+}
+
 function readStoredString(key: string, fallback = "") {
   if (typeof window === "undefined") {
     return fallback;
@@ -197,6 +201,7 @@ function App() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [retryingDocumentId, setRetryingDocumentId] = useState<number | null>(null);
   const [workerSchedule, setWorkerSchedule] = useState<WorkerScheduleStatus | null>(null);
   const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
   const [scheduleEndTime, setScheduleEndTime] = useState("08:00");
@@ -336,6 +341,26 @@ function App() {
       setActionError(messageFromError(error));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function retryFailedDocument(documentId: number) {
+    setRetryingDocumentId(documentId);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const retried = await invoke<DocumentDetail>("retry_document", { documentId });
+      await refreshProjects(false);
+      await refreshDocuments(retried.projectName, documentsPage, false);
+      await refreshDetail(documentId, false);
+      setSelectedProjectName(retried.projectName);
+      setSelectedDocumentId(documentId);
+      setActionMessage(`Retried ${retried.sourceName}.`);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setRetryingDocumentId(null);
     }
   }
 
@@ -756,6 +781,8 @@ function App() {
                   onImportFiles={() => void importProjectInputs(false)}
                   onImportFolder={() => void importProjectInputs(true)}
                   onCreateProject={() => setShowCreatePanel(true)}
+                  onRetryDocument={(documentId) => void retryFailedDocument(documentId)}
+                  retryingDocumentId={retryingDocumentId}
                 />
               ) : activePage === "review" ? (
                 <DocumentDetailPanel
@@ -765,6 +792,8 @@ function App() {
                   onSelectNextDocument={nextDocumentId ? () => setSelectedDocumentId(nextDocumentId) : null}
                   selectedPosition={selectedDocumentIndex >= 0 ? selectedDocumentIndex + 1 : 0}
                   totalDocuments={documents.length}
+                  onRetryDocument={detail && canRetryDocument(detail) ? () => void retryFailedDocument(detail.id) : null}
+                  retrying={detail?.id === retryingDocumentId}
                 />
               ) : (
                 <div className="settings-page mx-auto max-w-3xl">

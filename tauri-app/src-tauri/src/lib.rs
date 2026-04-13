@@ -698,6 +698,20 @@ fn add_project_inputs(project_name: String, paths: Vec<String>) -> Result<String
 }
 
 #[tauri::command]
+fn retry_document(document_id: i64) -> Result<DocumentDetail, String> {
+    let stdout = run_python_cli(vec![
+        "run".to_string(),
+        "python".to_string(),
+        "src/main.py".to_string(),
+        "retry-task".to_string(),
+        document_id.to_string(),
+    ])?;
+
+    let _ = stdout;
+    get_document_detail(document_id)?.ok_or_else(|| format!("Document not found: {document_id}"))
+}
+
+#[tauri::command]
 fn export_project(project_name: String, output_dir: Option<String>) -> Result<Vec<String>, String> {
     let trimmed = project_name.trim();
     if trimmed.is_empty() {
@@ -811,6 +825,7 @@ pub fn run() {
             list_documents,
             get_document_detail,
             add_project_inputs,
+            retry_document,
             export_project,
             get_worker_schedule_status,
             install_worker_schedule,

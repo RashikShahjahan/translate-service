@@ -19,6 +19,8 @@ type DocumentsTableProps = {
   onImportFiles: () => void;
   onImportFolder: () => void;
   onCreateProject: () => void;
+  onRetryDocument: (documentId: number) => void;
+  retryingDocumentId: number | null;
 };
 
 function DocumentsTable(props: DocumentsTableProps) {
@@ -83,6 +85,8 @@ function DocumentsTable(props: DocumentsTableProps) {
             <tbody>
               {props.documents.map((document) => {
                 const selected = document.id === props.selectedDocumentId;
+                const canRetry = Boolean(document.errorMessage) && !document.status.startsWith("processing_");
+                const retrying = props.retryingDocumentId === document.id;
 
                 return (
                   <tr
@@ -100,6 +104,19 @@ function DocumentsTable(props: DocumentsTableProps) {
                           <span className="rounded-full border border-rose-400/20 bg-rose-400/12 px-2 py-1 text-[11px] font-semibold text-rose-200">
                             Needs attention
                           </span>
+                        ) : null}
+                        {canRetry ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              props.onRetryDocument(document.id);
+                            }}
+                            disabled={retrying}
+                            className="rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-3 py-1 text-[11px] font-semibold text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            {retrying ? "Retrying..." : "Retry now"}
+                          </button>
                         ) : null}
                       </div>
                     </td>

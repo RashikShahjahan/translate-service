@@ -20,6 +20,8 @@ type WorkspacePanelProps = {
   onImportFiles: () => void;
   onImportFolder: () => void;
   onCreateProject: () => void;
+  onRetryDocument: (documentId: number) => void;
+  retryingDocumentId: number | null;
 };
 
 function WorkspacePanel(props: WorkspacePanelProps) {
@@ -66,6 +68,8 @@ function WorkspacePanel(props: WorkspacePanelProps) {
         onImportFiles={props.onImportFiles}
         onImportFolder={props.onImportFolder}
         onCreateProject={props.onCreateProject}
+        onRetryDocument={props.onRetryDocument}
+        retryingDocumentId={props.retryingDocumentId}
       />
     </section>
   );
