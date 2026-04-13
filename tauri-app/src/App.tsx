@@ -99,23 +99,6 @@ function PlusIcon() {
   );
 }
 
-function FileIcon() {
-  return (
-    <ToolbarIcon>
-      <path d="M6 3.5h5l3 3V16a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 5 16V5A1.5 1.5 0 0 1 6.5 3.5Z" />
-      <path d="M11 3.5V7h3" />
-    </ToolbarIcon>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <ToolbarIcon>
-      <path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h4l1.4 1.5H16A1.5 1.5 0 0 1 17.5 8v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5Z" />
-    </ToolbarIcon>
-  );
-}
-
 function ExportIcon() {
   return (
     <ToolbarIcon>
@@ -692,18 +675,6 @@ function App() {
                     onClick={() => setSidebarVisible((current) => !current)}
                   />
                   <CommandButton
-                    icon={<FileIcon />}
-                    label={importing ? "Importing..." : "Import Files"}
-                    onClick={() => void importProjectInputs(false)}
-                    disabled={!selectedProjectName || importing}
-                  />
-                  <CommandButton
-                    icon={<FolderIcon />}
-                    label="Import Folder"
-                    onClick={() => void importProjectInputs(true)}
-                    disabled={!selectedProjectName || importing}
-                  />
-                  <CommandButton
                     icon={<ExportIcon />}
                     label={exporting ? "Exporting..." : "Export"}
                     onClick={() => void exportProjectFiles()}
@@ -775,6 +746,7 @@ function App() {
                   documentsPage={documentsPage}
                   documentsTotalPages={documentsTotalPages}
                   loadingDocuments={loadingDocuments}
+                  importing={importing}
                   onSelectDocument={(documentId) => {
                     setSelectedDocumentId(documentId);
                     setActivePage("review");

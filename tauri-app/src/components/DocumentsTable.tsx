@@ -1,5 +1,6 @@
 import { StatusBadge, formatTimestamp } from "./app-shared";
 import type { DocumentRow } from "../types";
+import ImportMenuButton from "./ImportMenuButton";
 
 type DocumentsTableProps = {
   selectedProjectName: string;
@@ -11,6 +12,7 @@ type DocumentsTableProps = {
   documentsPage: number;
   documentsTotalPages: number;
   loadingDocuments: boolean;
+  importing: boolean;
   onSelectDocument: (documentId: number) => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
@@ -22,8 +24,6 @@ type DocumentsTableProps = {
 function DocumentsTable(props: DocumentsTableProps) {
   const inlineActionClass =
     "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
-  const secondaryInlineActionClass =
-    "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[var(--app-border)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
 
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] backdrop-blur-[10px]">
@@ -56,14 +56,16 @@ function DocumentsTable(props: DocumentsTableProps) {
       ) : props.documents.length === 0 ? (
         <div className="px-4 py-12 text-center text-sm text-[var(--app-muted)]">
           <div>No files in this project yet.</div>
-          <div className="mt-2">Import files or a folder to start the queue.</div>
+          <div className="mt-2">Use Add to import files or a folder.</div>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <button type="button" onClick={props.onImportFiles} className={inlineActionClass}>
-              Import files
-            </button>
-            <button type="button" onClick={props.onImportFolder} className={secondaryInlineActionClass}>
-              Import folder
-            </button>
+            <ImportMenuButton
+              disabled={false}
+              importing={props.importing}
+              onImportFiles={props.onImportFiles}
+              onImportFolder={props.onImportFolder}
+              className={inlineActionClass}
+              menuAlign="left"
+            />
           </div>
         </div>
       ) : (
