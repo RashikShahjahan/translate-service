@@ -22,15 +22,6 @@ function DetailActionIcon(props: { children: ReactNode }) {
   );
 }
 
-function ArrowLeftIcon() {
-  return (
-    <DetailActionIcon>
-      <path d="M8 5.5 3.5 10 8 14.5" />
-      <path d="M4 10h12.5" />
-    </DetailActionIcon>
-  );
-}
-
 function ChevronLeftIcon() {
   return (
     <DetailActionIcon>
@@ -86,7 +77,6 @@ function DetailActionButton(props: DetailActionButtonProps) {
 type DocumentDetailPanelProps = {
   detail: DocumentDetail | null;
   loadingDetail: boolean;
-  onBack: () => void;
   onSelectPreviousDocument: (() => void) | null;
   onSelectNextDocument: (() => void) | null;
   selectedPosition: number;
@@ -115,7 +105,6 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             </div>
             <h2 className="mt-2 text-xl font-semibold text-[var(--app-text)]">No document selected</h2>
           </div>
-          <DetailActionButton icon={<ArrowLeftIcon />} label="Back to workspace" onClick={props.onBack} />
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-[var(--app-muted)]">
           Open a document from the list to review it here.
@@ -150,7 +139,6 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             onClick={() => setShowMetadata((current) => !current)}
             active={showMetadata}
           />
-          <DetailActionButton icon={<ArrowLeftIcon />} label="Back to workspace" onClick={props.onBack} />
           <DetailActionButton
             icon={<ChevronLeftIcon />}
             label="Previous document"

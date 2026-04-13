@@ -761,7 +761,6 @@ function App() {
                 <DocumentDetailPanel
                   detail={detail}
                   loadingDetail={loadingDetail}
-                  onBack={() => setActivePage("workspace")}
                   onSelectPreviousDocument={previousDocumentId ? () => setSelectedDocumentId(previousDocumentId) : null}
                   onSelectNextDocument={nextDocumentId ? () => setSelectedDocumentId(nextDocumentId) : null}
                   selectedPosition={selectedDocumentIndex >= 0 ? selectedDocumentIndex + 1 : 0}
