@@ -3,112 +3,25 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
 
-type ProjectSummary = {
-  id: number;
-  name: string;
-  createdAt: string;
-  totalDocuments: number;
-  queuedDocuments: number;
-  processingDocuments: number;
-  completedDocuments: number;
-  erroredDocuments: number;
-};
-
-type DocumentRow = {
-  id: number;
-  sourceName: string;
-  sourceType: string;
-  status: string;
-  errorMessage: string | null;
-  retryCount: number;
-  nextAttemptAt: string | null;
-  leasedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type DocumentListResponse = {
-  documents: DocumentRow[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-};
-
-type DocumentDetail = {
-  id: number;
-  projectName: string;
-  sourceName: string;
-  sourceType: string;
-  mimeType: string | null;
-  sourceText: string | null;
-  ocrText: string | null;
-  translatedText: string | null;
-  status: string;
-  errorMessage: string | null;
-  retryCount: number;
-  nextAttemptAt: string | null;
-  leasedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type WorkerScheduleStatus = {
-  supported: boolean;
-  installed: boolean;
-  loaded: boolean;
-  startTime: string;
-  endTime: string;
-  plistPath: string;
-};
+import DocumentDetailPanel from "./components/DocumentDetailPanel";
+import ProjectSidebar from "./components/ProjectSidebar";
+import WorkspacePanel from "./components/WorkspacePanel";
+import type {
+  DocumentDetail,
+  DocumentListResponse,
+  DocumentRow,
+  ProjectSummary,
+  WorkerScheduleStatus,
+} from "./types";
 
 const POLL_INTERVAL_MS = 4000;
 const DOCUMENTS_PAGE_SIZE = 15;
 const APP_MENU_COMMAND_EVENT = "app-menu-command";
-
-const STATUS_STYLES: Record<string, string> = {
-  pending_ocr: "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200",
-  processing_ocr:
-    "bg-orange-100 text-orange-900 ring-1 ring-inset ring-orange-200",
-  pending_translation:
-    "bg-fuchsia-100 text-fuchsia-900 ring-1 ring-inset ring-fuchsia-200",
-  processing_translation:
-    "bg-sky-100 text-sky-900 ring-1 ring-inset ring-sky-200",
-  completed: "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-200",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending_ocr: "Queued OCR",
-  processing_ocr: "Running OCR",
-  pending_translation: "Queued Translation",
-  processing_translation: "Translating",
-  completed: "Completed",
-};
-
-function formatTimestamp(value: string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function getStatusLabel(status: string) {
-  return STATUS_LABELS[status] ?? status;
-}
-
-function getStatusClass(status: string) {
-  return STATUS_STYLES[status] ?? "bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200";
-}
+const MIN_SIDEBAR_WIDTH = 220;
+const MAX_SIDEBAR_WIDTH = 420;
+const MIN_DETAIL_WIDTH = 280;
+const MAX_DETAIL_WIDTH = 520;
+const DESKTOP_GUTTER_WIDTH = 6;
 
 function messageFromError(error: unknown) {
   if (typeof error === "string") {
@@ -139,14 +52,39 @@ async function selectFilePaths(options: {
   return Array.isArray(selection) ? selection : [selection];
 }
 
-function StatCard(props: { label: string; value: number; accent: string }) {
+type ViewToggleCardProps = {
+  label: string;
+  description: string;
+  enabled: boolean;
+  onToggle: () => void;
+};
+
+function ViewToggleCard(props: ViewToggleCardProps) {
   return (
-    <div className="rounded-[28px] border border-stone-200/80 bg-white/90 p-5 shadow-sm shadow-stone-200/70">
-      <div className={`text-xs font-medium ${props.accent}`}>
-        {props.label}
+    <button
+      type="button"
+      onClick={props.onToggle}
+      aria-pressed={props.enabled}
+      className={`flex w-full items-start justify-between gap-4 rounded-lg border px-4 py-3 text-left transition ${
+        props.enabled
+          ? "border-[var(--app-border-strong)] bg-[linear-gradient(135deg,rgba(103,183,255,0.18),rgba(255,255,255,0.03))] text-[var(--app-text)] shadow-[0_14px_30px_rgba(2,6,23,0.28)]"
+          : "border-[var(--app-border)] bg-white/4 text-[var(--app-text)] hover:bg-white/6"
+      }`}
+    >
+      <div>
+        <div className="text-sm font-semibold">{props.label}</div>
+        <div className={`mt-1 text-sm leading-5 ${props.enabled ? "text-[var(--app-text)]/80" : "text-[var(--app-muted)]"}`}>
+          {props.description}
+        </div>
       </div>
-      <div className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{props.value}</div>
-    </div>
+      <span
+        className={`inline-flex min-w-14 justify-center rounded-full px-3 py-1 text-xs font-semibold ${
+          props.enabled ? "bg-sky-400/14 text-[var(--app-accent-strong)]" : "bg-white/6 text-[var(--app-muted)]"
+        }`}
+      >
+        {props.enabled ? "On" : "Off"}
+      </span>
+    </button>
   );
 }
 
@@ -173,14 +111,17 @@ function App() {
   const [removingWorkerSchedule, setRemovingWorkerSchedule] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [showProjects, setShowProjects] = useState(true);
+  const [showWorkspace, setShowWorkspace] = useState(true);
+  const [showDocumentDetail, setShowDocumentDetail] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [detailWidth, setDetailWidth] = useState(360);
 
   const selectedProject =
     projects.find((project) => project.name === selectedProjectName) ?? null;
 
   async function createNamedProject(name: string) {
-    const createdProject = await invoke<ProjectSummary>("create_project", {
-      name,
-    });
+    const createdProject = await invoke<ProjectSummary>("create_project", { name });
     setProjectNameInput("");
     setDocumentsPage(1);
     setSelectedProjectName(createdProject.name);
@@ -521,515 +462,312 @@ function App() {
 
   const documentsTotalPages = Math.max(1, Math.ceil(documentsTotalCount / DOCUMENTS_PAGE_SIZE));
   const documentsRangeStart = documentsTotalCount === 0 ? 0 : (documentsPage - 1) * DOCUMENTS_PAGE_SIZE + 1;
-  const documentsRangeEnd = documentsTotalCount === 0 ? 0 : Math.min(documentsTotalCount, documentsPage * DOCUMENTS_PAGE_SIZE);
+  const documentsRangeEnd =
+    documentsTotalCount === 0 ? 0 : Math.min(documentsTotalCount, documentsPage * DOCUMENTS_PAGE_SIZE);
+
+  const visibleSections = Number(showProjects) + Number(showWorkspace) + Number(showDocumentDetail);
+
+  useEffect(() => {
+    function stopDragging() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    return () => stopDragging();
+  }, []);
+
+  function beginSidebarResize() {
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function handlePointerMove(event: PointerEvent) {
+      setSidebarWidth(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, event.clientX - 8)));
+    }
+
+    function handlePointerUp() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
+  function beginDetailResize() {
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function handlePointerMove(event: PointerEvent) {
+      setDetailWidth(Math.min(MAX_DETAIL_WIDTH, Math.max(MIN_DETAIL_WIDTH, window.innerWidth - event.clientX - 8)));
+    }
+
+    function handlePointerUp() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
+  const shellGridTemplateColumns = [
+    showProjects ? `${sidebarWidth}px` : null,
+    showProjects ? `${DESKTOP_GUTTER_WIDTH}px` : null,
+    "minmax(0,1fr)",
+    showDocumentDetail ? `${DESKTOP_GUTTER_WIDTH}px` : null,
+    showDocumentDetail ? `${detailWidth}px` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <main className="min-h-screen px-4 py-5 text-stone-800 sm:px-6 sm:py-6">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1600px] grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1.2fr)_minmax(340px,0.9fr)]">
-        <aside className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
-              Translation Workspace
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Projects</h1>
-            <p className="text-sm leading-6 text-stone-600">
-              Keep each translation job in one place, bring in your files, and check progress without digging through logs.
-            </p>
+    <main className="h-screen overflow-hidden p-2 text-[var(--app-text)]">
+      <div
+        className="shell-frame topbar-glow mx-auto grid h-[calc(100vh-1rem)] max-w-[1760px] grid-rows-[40px_minmax(0,1fr)] gap-y-3 rounded-[16px] p-3"
+        style={{ gridTemplateColumns: shellGridTemplateColumns }}
+      >
+        <div className="desktop-titlebar col-span-full flex items-center justify-between rounded-[14px] px-3">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+            <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           </div>
+          <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">
+            Translate Service
+          </div>
+          <div className="text-xs text-[var(--app-muted)]">Desktop workspace</div>
+        </div>
 
-          <form className="mt-6 space-y-3" onSubmit={handleCreateProject}>
-            <label className="block text-xs font-medium text-stone-500">
-              New project
-            </label>
-            <input
-              value={projectNameInput}
-              onChange={(event) => setProjectNameInput(event.currentTarget.value)}
-              placeholder="Spring catalog"
-              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+        {showProjects ? (
+          <div className="min-h-0">
+            <ProjectSidebar
+              projects={projects}
+              selectedProjectName={selectedProjectName}
+              loadingProjects={loadingProjects}
+              onSelectProject={(name) => {
+                setDocumentsPage(1);
+                setSelectedProjectName(name);
+              }}
             />
-            <button
-              type="submit"
-              disabled={creatingProject}
-              className="w-full rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {creatingProject ? "Creating..." : "Create project"}
-            </button>
-          </form>
-
-          <div className="mt-8 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-stone-500">
-              Projects
-            </h2>
-            {loadingProjects ? <span className="text-xs text-stone-400">Updating</span> : null}
           </div>
+        ) : null}
 
-          <div className="mt-3 space-y-2">
-            {projects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-4 text-sm text-stone-500">
-                No projects yet. Create one to get started.
-              </div>
-            ) : null}
+        {showProjects && showWorkspace ? (
+          <div className="pane-resizer min-h-0" onPointerDown={beginSidebarResize} role="separator" aria-orientation="vertical" />
+        ) : null}
 
-            {projects.map((project) => {
-              const selected = project.name === selectedProjectName;
+        <div className="min-h-0 min-w-0 space-y-3 overflow-auto pr-1">
+          <section className="panel-surface overflow-hidden rounded-2xl">
+            <div className="p-4 sm:p-5">
+              <div className="flex flex-col gap-3 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
+                    Workspace
+                  </div>
+                  <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text)] sm:text-2xl">
+                    Translation operations
+                  </h1>
+                  <p className="mt-2 max-w-3xl text-sm text-[var(--app-muted)]">
+                    Create projects, import source material, and inspect output in one desktop workspace.
+                  </p>
+                </div>
 
-              return (
-                <button
-                  key={project.id}
-                  type="button"
-                  onClick={() => {
-                    setDocumentsPage(1);
-                    setSelectedProjectName(project.name);
-                  }}
-                    className={`w-full rounded-[24px] border px-4 py-3.5 text-left transition ${
-                      selected
-                        ? "border-amber-300 bg-amber-50 shadow-sm shadow-amber-100"
-                        : "border-stone-200 bg-white/85 hover:border-stone-300 hover:bg-white"
-                    }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-stone-900">{project.name}</div>
-                      <div className="mt-1 text-xs text-stone-500">
-                        Created {formatTimestamp(project.createdAt)}
-                      </div>
+                <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+                  <div className="panel-soft rounded-lg p-4">
+                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Selected</div>
+                    <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text)]">
+                      {selectedProjectName || "No project selected"}
                     </div>
-                    {project.erroredDocuments > 0 ? (
-                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
-                        {project.erroredDocuments} issue{project.erroredDocuments === 1 ? "" : "s"}
-                      </span>
-                    ) : null}
+                    <div className="mt-1 text-xs text-[var(--app-muted)]">
+                      {selectedProject
+                        ? `${selectedProject.totalDocuments} document${selectedProject.totalDocuments === 1 ? "" : "s"}`
+                        : "Pick a project from the sidebar."}
+                    </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
-                    <span>
-                      Waiting <span className="font-semibold text-stone-900">{project.queuedDocuments}</span>
-                    </span>
-                    <span>
-                      In progress <span className="font-semibold text-stone-900">{project.processingDocuments}</span>
-                    </span>
-                    <span>
-                      Ready <span className="font-semibold text-stone-900">{project.completedDocuments}</span>
-                    </span>
+                  <div className="panel-soft rounded-lg p-4">
+                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Visible panels</div>
+                    <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{visibleSections}/3</div>
+                    <div className="mt-1 text-xs text-[var(--app-muted)]">Projects, workspace, and document detail.</div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <section className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-stone-200/80 pb-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
-                {selectedProjectName ? "Current project" : "Workspace overview"}
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">
-                {selectedProjectName || "Choose or create a project"}
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-                Bring in files or a whole folder, then follow the translation progress here. The page keeps itself up to date automatically.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void importProjectInputs(false)}
-                disabled={!selectedProjectName || importing}
-                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {importing ? "Importing..." : "Import files"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void importProjectInputs(true)}
-                disabled={!selectedProjectName || importing}
-                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Import folder
-              </button>
-              <button
-                type="button"
-                onClick={() => void refreshWorkspace()}
-                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportProjectFiles()}
-                disabled={!selectedProjectName || exporting}
-                className="rounded-xl bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {exporting ? "Exporting..." : "Export files"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-            <StatCard
-              label="All documents"
-              value={selectedProject?.totalDocuments ?? 0}
-              accent="text-stone-500"
-            />
-            <StatCard
-              label="Waiting"
-              value={selectedProject?.queuedDocuments ?? 0}
-              accent="text-amber-700"
-            />
-            <StatCard
-              label="In progress"
-              value={selectedProject?.processingDocuments ?? 0}
-              accent="text-orange-700"
-            />
-            <StatCard
-              label="Ready"
-              value={selectedProject?.completedDocuments ?? 0}
-              accent="text-emerald-700"
-            />
-          </div>
-
-          {actionError ? (
-            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-              {actionError}
-            </div>
-          ) : null}
-
-          {!actionError && actionMessage ? (
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              {actionMessage}
-            </div>
-          ) : null}
-
-          <section className="mt-5 rounded-[28px] border border-stone-200/80 bg-stone-50/70 p-4 sm:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-stone-700">Worker schedule</h3>
-                <p className="mt-1 max-w-2xl text-sm text-stone-500">
-                  Run the background worker on a daily macOS schedule without leaving a terminal open.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-                {loadingWorkerSchedule ? (
-                  <span className="rounded-full bg-stone-200 px-3 py-1 text-stone-600">
-                    Checking schedule
-                  </span>
-                ) : workerSchedule?.supported ? (
-                  <>
-                    <span
-                      className={`rounded-full px-3 py-1 ${
-                        workerSchedule.installed
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-stone-200 text-stone-600"
-                      }`}
-                    >
-                      {workerSchedule.installed ? "Enabled" : "Disabled"}
-                    </span>
-                    <span
-                      className={`rounded-full px-3 py-1 ${
-                        workerSchedule.loaded
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-stone-200 text-stone-600"
-                      }`}
-                    >
-                      {workerSchedule.loaded ? "Loaded in launchd" : "Not loaded"}
-                    </span>
-                  </>
-                ) : (
-                  <span className="rounded-full bg-stone-200 px-3 py-1 text-stone-600">
-                    macOS only
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {workerSchedule?.supported ? (
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-xs font-medium text-stone-500">
-                    Start time
-                    <input
-                      type="time"
-                      value={scheduleStartTime}
-                      onChange={(event) => setScheduleStartTime(event.currentTarget.value)}
-                      className="mt-1.5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                    />
-                  </label>
-                  <label className="block text-xs font-medium text-stone-500">
-                    End time
-                    <input
-                      type="time"
-                      value={scheduleEndTime}
-                      onChange={(event) => setScheduleEndTime(event.currentTarget.value)}
-                      className="mt-1.5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                    />
-                  </label>
-                </div>
-
-                <div className="flex flex-wrap gap-2 lg:justify-end">
                   <button
                     type="button"
-                    onClick={() => void saveWorkerSchedule()}
-                    disabled={loadingWorkerSchedule || savingWorkerSchedule || removingWorkerSchedule}
-                    className="rounded-xl bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void createUntitledProject()}
+                    disabled={creatingProject}
+                    className="rounded-lg border border-[var(--app-border-strong)] bg-[linear-gradient(135deg,rgba(103,183,255,0.16),rgba(70,140,243,0.06))] p-4 text-left transition hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {savingWorkerSchedule
-                      ? "Saving..."
-                      : workerSchedule?.installed
-                        ? "Update schedule"
-                        : "Enable schedule"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void removeWorkerSchedule()}
-                    disabled={!workerSchedule?.installed || savingWorkerSchedule || removingWorkerSchedule}
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {removingWorkerSchedule ? "Disabling..." : "Disable schedule"}
+                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-accent-strong)]">Quick create</div>
+                    <div className="mt-2 text-sm font-semibold text-[var(--app-text)]">
+                      {creatingProject ? "Creating project..." : "Create untitled project"}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--app-text)]/70">Fastest way to start a new import queue.</div>
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-500">
-                This app currently manages worker schedules through macOS LaunchAgents.
-              </div>
-            )}
 
-            {workerSchedule?.supported ? (
-              <div className="mt-4 text-xs text-stone-500">
-                LaunchAgent path: <span className="font-mono text-[11px] text-stone-700">{workerSchedule.plistPath}</span>
-              </div>
-            ) : null}
-          </section>
-
-          <div className="mt-5 overflow-hidden rounded-[28px] border border-stone-200/80 bg-stone-50/70">
-            <div className="flex items-center justify-between border-b border-stone-200/80 px-4 py-3">
-              <div>
-                <h3 className="text-sm font-medium text-stone-700">
-                  Documents
-                </h3>
-                <p className="mt-1 text-sm text-stone-500">
-                  {selectedProjectName
-                    ? "See where each file is in the workflow and open one for more detail."
-                    : "Select a project to browse its files."}
-                </p>
-              </div>
-              <div className="text-right">
-                {selectedProjectName ? (
-                  <div className="text-xs text-stone-500">
-                    Showing {documentsRangeStart}-{documentsRangeEnd} of {documentsTotalCount}
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+                <form className="panel-soft rounded-xl p-4 sm:p-5" onSubmit={handleCreateProject}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <label className="font-mono-ui block text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
+                        New project
+                      </label>
+                      <p className="mt-2 text-sm text-[var(--app-muted)]">Use a short descriptive name so imports stay easy to scan.</p>
+                    </div>
+                    <div className="metal-pill rounded-full px-3 py-1 text-xs font-medium text-[var(--app-accent-strong)]">Create</div>
                   </div>
-                ) : null}
-                {loadingDocuments ? <span className="text-xs text-stone-400">Refreshing</span> : null}
-              </div>
-            </div>
-
-            {!selectedProjectName ? (
-              <div className="px-4 py-12 text-center text-sm text-stone-500">
-                Create a project to start adding files.
-              </div>
-            ) : documents.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-stone-500">
-                No files in this project yet.
-              </div>
-            ) : (
-              <div className="overflow-auto">
-                <table className="min-w-full border-separate border-spacing-0 text-left">
-                  <thead>
-                    <tr className="text-xs text-stone-500">
-                      <th className="px-4 py-3 font-medium">Document</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Retries</th>
-                      <th className="px-4 py-3 font-medium">Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {documents.map((document) => {
-                      const selected = document.id === selectedDocumentId;
-
-                      return (
-                        <tr
-                          key={document.id}
-                          onClick={() => {
-                            setSelectedDocumentId(document.id);
-                          }}
-                          className={`cursor-pointer transition ${
-                            selected ? "bg-amber-100/80" : "hover:bg-white/70"
-                          }`}
-                        >
-                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top">
-                            <div className="max-w-[420px] truncate text-sm font-medium text-stone-900">
-                              {document.sourceName}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                              <span>Created {formatTimestamp(document.createdAt)}</span>
-                              {document.errorMessage ? (
-                                <span className="rounded-full bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
-                                  Needs attention
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm capitalize text-stone-600">
-                            {document.sourceType}
-                          </td>
-                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top">
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(document.status)}`}>
-                              {getStatusLabel(document.status)}
-                            </span>
-                            {document.nextAttemptAt ? (
-                              <div className="mt-2 text-xs text-stone-500">
-                                Retry {formatTimestamp(document.nextAttemptAt)}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm text-stone-600">
-                            {document.retryCount}
-                          </td>
-                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm text-stone-600">
-                            {formatTimestamp(document.updatedAt)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="flex flex-col gap-3 border-t border-stone-200/80 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-stone-500">
-                    Page {documentsPage} of {documentsTotalPages}
+                  <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+                    <input
+                      value={projectNameInput}
+                      onChange={(event) => setProjectNameInput(event.currentTarget.value)}
+                      placeholder="spring-catalog"
+                      className="min-w-0 flex-1 rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="submit"
+                        disabled={creatingProject}
+                      className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-5 py-3 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {creatingProject ? "Creating..." : "Create named project"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createUntitledProject()}
+                        disabled={creatingProject}
+                        className="rounded-full border border-[var(--app-border)] bg-white/6 px-5 py-3 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Use untitled
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                </form>
+
+                <div className="panel-soft rounded-xl p-4 sm:p-5 text-[var(--app-text)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-mono-ui text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">Layout</div>
+                      <p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">Keep only the panels you want visible.</p>
+                    </div>
+                    <div className="rounded-full border border-[var(--app-border)] bg-white/6 px-3 py-1 text-xs font-semibold text-[var(--app-text)]">
+                      {visibleSections}/3 visible
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <ViewToggleCard
+                      label="Projects drawer"
+                      description="Browse and switch projects from the left side."
+                      enabled={showProjects}
+                      onToggle={() => setShowProjects((current) => !current)}
+                    />
+                    <ViewToggleCard
+                      label="Workspace section"
+                      description="Keep imports, schedule, status, and documents open."
+                      enabled={showWorkspace}
+                      onToggle={() => setShowWorkspace((current) => !current)}
+                    />
+                    <ViewToggleCard
+                      label="Document detail"
+                      description="Open the selected document in the right rail."
+                      enabled={showDocumentDetail}
+                      onToggle={() => setShowDocumentDetail((current) => !current)}
+                    />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setDocumentsPage((current) => Math.max(1, current - 1))}
-                      disabled={documentsPage <= 1 || loadingDocuments}
-                      className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => {
+                        setShowProjects(false);
+                        setShowWorkspace(false);
+                        setShowDocumentDetail(false);
+                      }}
+                      className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-2 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10"
                     >
-                      Previous
+                      Focus create
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDocumentsPage((current) => Math.min(documentsTotalPages, current + 1))}
-                      disabled={documentsPage >= documentsTotalPages || loadingDocuments}
-                      className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => {
+                        setShowProjects(true);
+                        setShowWorkspace(true);
+                        setShowDocumentDetail(true);
+                      }}
+                      className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105"
                     >
-                      Next
+                      Show all
                     </button>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </section>
 
-        <aside className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
-                Document detail
-              </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-tight text-stone-900">
-                {detail?.sourceName ?? "No selection"}
-              </h3>
-            </div>
-            {loadingDetail ? <span className="text-xs text-stone-400">Refreshing</span> : null}
-          </div>
-
-          {!detail ? (
-            <div className="py-12 text-center text-sm text-stone-500">
-              Select a file to read its original text, OCR result, translation, and any issues.
-            </div>
-          ) : (
-            <div className="mt-5 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                  <div className="text-[11px] font-medium text-stone-500">
-                    Source type
-                  </div>
-                  <div className="mt-2 text-sm font-medium capitalize text-stone-900">{detail.sourceType}</div>
+              {actionError ? (
+                <div className="mt-4 rounded-lg border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                  {actionError}
                 </div>
-                <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                  <div className="text-[11px] font-medium text-stone-500">
-                    Status
-                  </div>
-                  <div className="mt-2">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(detail.status)}`}>
-                      {getStatusLabel(detail.status)}
-                    </span>
-                  </div>
+              ) : null}
+
+              {!actionError && actionMessage ? (
+                <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                  {actionMessage}
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                <div className="grid gap-3 text-sm text-stone-600 sm:grid-cols-2">
-                  <div>
-                    <span className="text-stone-500">Project</span>
-                    <div className="mt-1 text-stone-900">{detail.projectName}</div>
-                  </div>
-                  <div>
-                    <span className="text-stone-500">MIME type</span>
-                    <div className="mt-1 break-all text-stone-900">{detail.mimeType ?? "-"}</div>
-                  </div>
-                  <div>
-                    <span className="text-stone-500">Updated</span>
-                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.updatedAt)}</div>
-                  </div>
-                  <div>
-                    <span className="text-stone-500">Retry count</span>
-                    <div className="mt-1 text-stone-900">{detail.retryCount}</div>
-                  </div>
-                  <div>
-                    <span className="text-stone-500">Next attempt</span>
-                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.nextAttemptAt)}</div>
-                  </div>
-                  <div>
-                    <span className="text-stone-500">Lease acquired</span>
-                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.leasedAt)}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                  <div className="text-xs font-medium text-stone-500">
-                    Original text
-                  </div>
-                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-700">
-                    {detail.sourceText?.trim() || "No source text stored for this document."}
-                  </pre>
-                </section>
-
-                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                  <div className="text-xs font-medium text-stone-500">
-                    OCR text
-                  </div>
-                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-700">
-                    {detail.ocrText?.trim() || "OCR has not produced text for this document yet."}
-                  </pre>
-                </section>
-
-                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
-                  <div className="text-xs font-medium text-stone-500">
-                    Translation preview
-                  </div>
-                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-800">
-                    {detail.translatedText?.trim() || "Translation has not completed for this document yet."}
-                  </pre>
-                </section>
-              </div>
-
-              {detail.errorMessage ? (
-                <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                  <div className="text-xs font-medium text-rose-700">Needs attention</div>
-                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-rose-800">
-                    {detail.errorMessage.trim()}
-                  </pre>
-                </section>
               ) : null}
             </div>
-          )}
-        </aside>
+          </section>
+
+          {showWorkspace ? (
+            <WorkspacePanel
+              selectedProjectName={selectedProjectName}
+              selectedProject={selectedProject}
+              importing={importing}
+              exporting={exporting}
+              actionError=""
+              actionMessage=""
+              onImportFiles={() => void importProjectInputs(false)}
+              onImportFolder={() => void importProjectInputs(true)}
+              onRefreshWorkspace={() => void refreshWorkspace()}
+              onExportFiles={() => void exportProjectFiles()}
+              workerSchedule={workerSchedule}
+              scheduleStartTime={scheduleStartTime}
+              scheduleEndTime={scheduleEndTime}
+              loadingWorkerSchedule={loadingWorkerSchedule}
+              savingWorkerSchedule={savingWorkerSchedule}
+              removingWorkerSchedule={removingWorkerSchedule}
+              onScheduleStartTimeChange={setScheduleStartTime}
+              onScheduleEndTimeChange={setScheduleEndTime}
+              onSaveWorkerSchedule={() => void saveWorkerSchedule()}
+              onRemoveWorkerSchedule={() => void removeWorkerSchedule()}
+              documents={documents}
+              selectedDocumentId={selectedDocumentId}
+              documentsRangeStart={documentsRangeStart}
+              documentsRangeEnd={documentsRangeEnd}
+              documentsTotalCount={documentsTotalCount}
+              documentsPage={documentsPage}
+              documentsTotalPages={documentsTotalPages}
+              loadingDocuments={loadingDocuments}
+              onSelectDocument={(documentId) => {
+                setSelectedDocumentId(documentId);
+                setShowDocumentDetail(true);
+              }}
+              onPreviousPage={() => setDocumentsPage((current) => Math.max(1, current - 1))}
+              onNextPage={() => setDocumentsPage((current) => Math.min(documentsTotalPages, current + 1))}
+            />
+          ) : null}
+        </div>
+
+        {showWorkspace && showDocumentDetail ? (
+          <div className="pane-resizer min-h-0" onPointerDown={beginDetailResize} role="separator" aria-orientation="vertical" />
+        ) : null}
+
+        {showDocumentDetail ? (
+          <div className="min-h-0">
+            <DocumentDetailPanel detail={detail} loadingDetail={loadingDetail} />
+          </div>
+        ) : null}
       </div>
     </main>
   );
