@@ -3,9 +3,20 @@ import { useState, type ReactNode } from "react";
 import { StatusBadge, TextPreviewSection, formatTimestamp } from "./app-shared";
 import type { DocumentDetail } from "../types";
 
+const detailActionButtonClass =
+  "group relative inline-flex min-h-8 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/4 px-[0.9rem] text-[0.8125rem] font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+const detailActionButtonActiveClass = "border-[rgba(103,183,255,0.32)] bg-[rgba(103,183,255,0.14)] text-[#dff1ff]";
+const detailIconClass = "inline-flex h-4 w-4 items-center justify-center";
+const detailTooltipClass =
+  "pointer-events-none absolute bottom-[calc(100%+0.55rem)] left-1/2 z-20 hidden -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[0.65rem] border border-white/8 bg-[rgba(7,17,31,0.96)] px-[0.65rem] py-[0.45rem] text-xs font-semibold leading-none text-[#f5fbff] opacity-0 transition duration-150 group-hover:block group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:block group-focus-visible:translate-y-0 group-focus-visible:opacity-100";
+const detailTooltipArrowClass =
+  "absolute left-1/2 top-full h-[0.55rem] w-[0.55rem] -translate-x-1/2 -translate-y-1/2 rotate-45 border-r border-b border-white/8 bg-[rgba(7,17,31,0.96)]";
+const detailPillClass =
+  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.045] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
+
 function DetailActionIcon(props: { children: ReactNode }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg className="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       {props.children}
     </svg>
   );
@@ -61,11 +72,12 @@ function DetailActionButton(props: DetailActionButtonProps) {
       disabled={props.disabled}
       aria-label={props.label}
       title={props.label}
-      className={`page-chip detail-action-button ${props.active ? "page-chip-active" : ""}`}
+      className={`${detailActionButtonClass} ${props.active ? detailActionButtonActiveClass : ""}`}
     >
-      <span className="command-button-icon">{props.icon}</span>
-      <span className="command-button-tooltip" aria-hidden="true">
+      <span className={detailIconClass}>{props.icon}</span>
+      <span className={detailTooltipClass} aria-hidden="true">
         {props.label}
+        <span className={detailTooltipArrowClass} />
       </span>
     </button>
   );
@@ -84,7 +96,7 @@ type DocumentDetailPanelProps = {
 function DetailMeta(props: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[var(--app-border)] bg-white/4 p-4">
-      <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">{props.label}</div>
+      <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">{props.label}</div>
       <div className="mt-2 text-sm text-[var(--app-text)]">{props.value}</div>
     </div>
   );
@@ -98,7 +110,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
       <section className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--app-border)] bg-white/3 p-6">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--app-border)] pb-4">
           <div>
-            <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
+            <div className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
               Review
             </div>
             <h2 className="mt-2 text-xl font-semibold text-[var(--app-text)]">No document selected</h2>
@@ -116,18 +128,18 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
     <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white/3 p-6">
       <div className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Review</div>
+          <div className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Review</div>
           <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-[var(--app-text)]">
             {props.detail.sourceName}
           </h2>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <StatusBadge status={props.detail.status} />
-            <span className="status-pill">
+            <span className={detailPillClass}>
               {props.totalDocuments > 0 && props.selectedPosition > 0
                 ? `${props.selectedPosition} of ${props.totalDocuments}`
                 : "Current page"}
             </span>
-            {props.loadingDetail ? <span className="status-pill">Refreshing</span> : null}
+            {props.loadingDetail ? <span className={detailPillClass}>Refreshing</span> : null}
           </div>
         </div>
 
@@ -157,7 +169,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
       <div className="mt-5 min-h-0 flex-1 overflow-auto pr-1">
         {props.detail.errorMessage ? (
           <section className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/10 p-4">
-            <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-rose-200">Error</div>
+            <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-rose-200">Error</div>
             <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-rose-100">
               {props.detail.errorMessage.trim()}
             </pre>
@@ -181,7 +193,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
 
         {showMetadata ? (
           <section className="mt-4 rounded-2xl border border-[var(--app-border)] bg-white/3 p-4">
-            <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Metadata</div>
+            <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Metadata</div>
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
               <DetailMeta label="Project" value={props.detail.projectName} />
               <DetailMeta label="Source type" value={props.detail.sourceType} />

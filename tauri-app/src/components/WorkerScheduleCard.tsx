@@ -18,7 +18,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
     props.loadingWorkerSchedule || props.savingWorkerSchedule || props.removingWorkerSchedule;
 
   return (
-    <section className="panel-soft rounded-2xl p-4 sm:p-5">
+    <section className="rounded-2xl border border-[#8497b01a] bg-[var(--app-panel-soft)] p-4 backdrop-blur-[10px] sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h3 className="text-base font-semibold text-[var(--app-text)]">Worker schedule</h3>
@@ -114,7 +114,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
 
       {props.workerSchedule?.supported ? (
         <div className="mt-4 text-xs text-[var(--app-muted)]">
-          LaunchAgent path: <span className="font-mono-ui text-[11px] text-[var(--app-text)]">{props.workerSchedule.plistPath}</span>
+          LaunchAgent path: <span className="font-[IBM_Plex_Mono] text-[11px] text-[var(--app-text)]">{props.workerSchedule.plistPath}</span>
         </div>
       ) : null}
     </section>

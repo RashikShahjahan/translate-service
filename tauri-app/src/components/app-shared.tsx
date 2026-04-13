@@ -45,8 +45,8 @@ function getStatusClass(status: string) {
 
 function StatCard(props: { label: string; value: number; accent: string }) {
   return (
-    <div className="panel-soft rounded-xl p-4">
-      <div className={`font-mono-ui text-[11px] uppercase tracking-[0.24em] ${props.accent}`}>{props.label}</div>
+    <div className="rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] p-4 backdrop-blur-[10px]">
+      <div className={`font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.24em] ${props.accent}`}>{props.label}</div>
       <div className="mt-2 text-3xl font-semibold leading-none text-[var(--app-text)]">{props.value}</div>
     </div>
   );
@@ -64,8 +64,8 @@ function StatusBadge(props: { status: string }) {
 
 function TextPreviewSection(props: { label: string; value: string }) {
   return (
-    <section className="panel-soft rounded-xl p-4">
-      <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">{props.label}</div>
+    <section className="rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] p-4 backdrop-blur-[10px]">
+      <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">{props.label}</div>
       <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--app-border)] bg-black/20 p-4 text-sm leading-6 text-[var(--app-text)]">
         {props.value}
       </pre>

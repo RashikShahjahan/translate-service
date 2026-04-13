@@ -69,7 +69,7 @@ type IconProps = {
 
 function ToolbarIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg className="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       {props.children}
     </svg>
   );
@@ -137,6 +137,23 @@ type CommandButtonProps = {
   variant?: "primary" | "secondary";
 };
 
+const iconButtonBaseClass =
+  "group relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/[0.055] text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+const iconButtonPrimaryClass =
+  "border-[rgba(103,183,255,0.3)] bg-[linear-gradient(135deg,#67b7ff,#468cf3)] text-[#04101d] shadow-[0_8px_24px_rgba(70,140,243,0.25)] hover:bg-[linear-gradient(135deg,#7cc2ff,#4f92f3)]";
+const iconClass = "inline-flex h-4 w-4 items-center justify-center";
+const tooltipClass =
+  "pointer-events-none absolute bottom-[calc(100%+0.55rem)] left-1/2 z-20 hidden -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[0.65rem] border border-white/8 bg-[rgba(7,17,31,0.96)] px-[0.65rem] py-[0.45rem] text-xs font-semibold leading-none text-[#f5fbff] opacity-0 transition duration-150 group-hover:block group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:block group-focus-visible:translate-y-0 group-focus-visible:opacity-100";
+const tooltipArrowClass =
+  "absolute left-1/2 top-full h-[0.55rem] w-[0.55rem] -translate-x-1/2 -translate-y-1/2 rotate-45 border-r border-b border-white/8 bg-[rgba(7,17,31,0.96)]";
+const pillClass =
+  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.045] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
+const pillErrorClass = "border-rose-400/30 bg-rose-400/12 text-rose-100";
+const actionButtonClass =
+  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(103,183,255,0.3)] bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 text-sm font-semibold leading-none text-[#04101d] transition hover:bg-[linear-gradient(135deg,#7cc2ff,#4f92f3)] disabled:cursor-not-allowed disabled:opacity-55";
+const secondaryActionButtonClass =
+  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[var(--app-border)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+
 function CommandButton(props: CommandButtonProps) {
   return (
     <button
@@ -145,11 +162,12 @@ function CommandButton(props: CommandButtonProps) {
       disabled={props.disabled}
       aria-label={props.label}
       title={props.label}
-      className={`command-button desktop-icon-button ${props.variant === "primary" ? "command-button-primary" : ""}`}
+      className={`${iconButtonBaseClass} ${props.variant === "primary" ? iconButtonPrimaryClass : ""}`}
     >
-      <span className="command-button-icon">{props.icon}</span>
-      <span className="command-button-tooltip" aria-hidden="true">
+      <span className={iconClass}>{props.icon}</span>
+      <span className={tooltipClass} aria-hidden="true">
         {props.label}
+        <span className={tooltipArrowClass} />
       </span>
     </button>
   );
@@ -579,10 +597,10 @@ function App() {
     documentsTotalCount === 0 ? 0 : Math.min(documentsTotalCount, documentsPage * DOCUMENTS_PAGE_SIZE);
 
   const statusText = actionError || actionMessage || (loadingProjects ? "Refreshing projects..." : "Ready");
-  const statusToneClass = actionError ? "status-pill status-pill-error" : "status-pill";
+  const statusToneClass = `${pillClass} ${actionError ? pillErrorClass : ""}`;
   return (
-    <main className="app-shell min-h-screen text-[var(--app-text)]">
-      <div className="app-layout mx-auto grid min-h-screen max-w-[1600px] gap-4 p-3 sm:p-4">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(103,183,255,0.12),transparent_26%),linear-gradient(180deg,#07111f_0%,#091423_100%)] text-[var(--app-text)]">
+      <div className="mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]">
         <div className="app-sidebar min-h-0">
           <ProjectSidebar
             projects={projects}
@@ -603,11 +621,11 @@ function App() {
         </div>
 
         <div className="app-main min-h-0">
-          <section className="panel-surface flex h-full min-h-0 flex-col rounded-[24px] p-4 sm:p-5">
+          <section className="flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-[inset_0_1px_0_#ffffff05] backdrop-blur-[14px] sm:p-5">
             <header className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
+                  <div className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
                     Translator Service
                   </div>
                   <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--app-text)]">
@@ -626,7 +644,7 @@ function App() {
                   </p>
                 </div>
 
-                <div className="desktop-toolbar flex flex-wrap items-center gap-2 lg:justify-end">
+                <div className="flex flex-wrap items-center gap-2 self-stretch lg:justify-end lg:self-start">
                   <CommandButton
                     icon={<PlusIcon />}
                     label="New Project"
@@ -665,32 +683,37 @@ function App() {
               </div>
 
               {showCreatePanel ? (
-                <form className="desktop-create-panel rounded-2xl p-4" onSubmit={handleCreateProject}>
+                <form className="rounded-2xl border border-[var(--app-border)] bg-white/4 p-4" onSubmit={handleCreateProject}>
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
                     <div className="min-w-0 flex-1">
-                      <label className="font-mono-ui block text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
+                      <label className="block font-[IBM_Plex_Mono] text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
                         New project
                       </label>
                       <input
                         value={projectNameInput}
                         onChange={(event) => setProjectNameInput(event.currentTarget.value)}
                         placeholder="spring-catalog"
-                        className="desktop-input mt-2 min-w-0 w-full rounded-xl border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
+                        className="mt-2 min-w-0 w-full rounded-xl border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="submit"
                         disabled={creatingProject || !projectNameInput.trim()}
-                        className="command-button command-button-primary"
+                        className={actionButtonClass}
                       >
-                        <span className="command-button-icon">
+                        <span className={iconClass}>
                           <PlusIcon />
                         </span>
                         <span>{creatingProject ? "Creating..." : "Create"}</span>
                       </button>
-                      <button type="button" onClick={() => void createUntitledProject()} disabled={creatingProject} className="command-button">
-                        <span className="command-button-icon">
+                      <button
+                        type="button"
+                        onClick={() => void createUntitledProject()}
+                        disabled={creatingProject}
+                        className={secondaryActionButtonClass}
+                      >
+                        <span className={iconClass}>
                           <PlusIcon />
                         </span>
                         <span>Untitled</span>

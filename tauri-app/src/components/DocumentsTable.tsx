@@ -20,8 +20,13 @@ type DocumentsTableProps = {
 };
 
 function DocumentsTable(props: DocumentsTableProps) {
+  const inlineActionClass =
+    "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+  const secondaryInlineActionClass =
+    "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[var(--app-border)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+
   return (
-    <div className="panel-soft mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
+    <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] backdrop-blur-[10px]">
       <div className="flex items-center justify-between border-b border-[var(--app-border)] px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-[var(--app-text)]">Documents</h3>
@@ -33,7 +38,7 @@ function DocumentsTable(props: DocumentsTableProps) {
         </div>
         <div className="text-right">
           {props.selectedProjectName ? (
-            <div className="font-mono-ui text-[11px] uppercase tracking-[0.18em] text-[var(--app-muted)]">
+            <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.18em] text-[var(--app-muted)]">
               Showing {props.documentsRangeStart}-{props.documentsRangeEnd} of {props.documentsTotalCount}
             </div>
           ) : null}
@@ -44,7 +49,7 @@ function DocumentsTable(props: DocumentsTableProps) {
       {!props.selectedProjectName ? (
         <div className="px-4 py-12 text-center text-sm text-[var(--app-muted)]">
           <div>Create a project to start adding files.</div>
-          <button type="button" onClick={props.onCreateProject} className="panel-inline-action mt-4">
+          <button type="button" onClick={props.onCreateProject} className={`${inlineActionClass} mt-4`}>
             Create project
           </button>
         </div>
@@ -53,19 +58,19 @@ function DocumentsTable(props: DocumentsTableProps) {
           <div>No files in this project yet.</div>
           <div className="mt-2">Import files or a folder to start the queue.</div>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <button type="button" onClick={props.onImportFiles} className="panel-inline-action">
+            <button type="button" onClick={props.onImportFiles} className={inlineActionClass}>
               Import files
             </button>
-            <button type="button" onClick={props.onImportFolder} className="panel-inline-action panel-inline-action-secondary">
+            <button type="button" onClick={props.onImportFolder} className={secondaryInlineActionClass}>
               Import folder
             </button>
           </div>
         </div>
       ) : (
         <div className="min-h-0 overflow-auto">
-          <table className="desktop-documents-table min-w-full border-separate border-spacing-0 text-left">
+          <table className="min-w-full border-separate border-spacing-0 text-left">
             <thead>
-              <tr className="font-mono-ui text-[11px] uppercase tracking-[0.18em] text-[var(--app-muted)]">
+              <tr className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.18em] text-[var(--app-muted)]">
                 <th className="px-4 py-3 font-medium">Document</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -81,7 +86,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                   <tr
                     key={document.id}
                     onClick={() => props.onSelectDocument(document.id)}
-                    className={`cursor-pointer transition ${selected ? "desktop-document-row-selected" : "hover:bg-white/4"}`}
+                    className={`cursor-pointer transition ${selected ? "bg-[linear-gradient(90deg,rgba(103,183,255,0.16),rgba(255,255,255,0.02))]" : "hover:bg-white/4"}`}
                   >
                     <td className="border-t border-[var(--app-border)] px-4 py-3.5 align-top">
                       <div className="max-w-[420px] truncate text-sm font-medium text-[var(--app-text)]">
