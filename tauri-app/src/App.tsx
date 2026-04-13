@@ -93,6 +93,16 @@ function FileIcon() {
   );
 }
 
+function WorkspaceIcon() {
+  return (
+    <ToolbarIcon>
+      <rect x="3.5" y="4" width="13" height="12" rx="2" />
+      <path d="M3.5 8.5h13" />
+      <path d="M8.5 8.5V16" />
+    </ToolbarIcon>
+  );
+}
+
 function FolderIcon() {
   return (
     <ToolbarIcon>
@@ -132,6 +142,16 @@ function SettingsIcon() {
   );
 }
 
+function ReviewIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M4.5 5.5A1.5 1.5 0 0 1 6 4h8a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 14 16H6a1.5 1.5 0 0 1-1.5-1.5Z" />
+      <path d="M7 8h6" />
+      <path d="M7 11h4" />
+    </ToolbarIcon>
+  );
+}
+
 type CommandButtonProps = {
   icon: ReactNode;
   label: string;
@@ -150,6 +170,32 @@ function CommandButton(props: CommandButtonProps) {
     >
       <span className="command-button-icon">{props.icon}</span>
       <span>{props.label}</span>
+    </button>
+  );
+}
+
+type PageNavButtonProps = {
+  icon: ReactNode;
+  label: string;
+  hint: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+};
+
+function PageNavButton(props: PageNavButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      disabled={props.disabled}
+      className={`page-nav-button ${props.active ? "page-nav-button-active" : ""}`}
+    >
+      <span className="page-nav-button-icon">{props.icon}</span>
+      <span className="min-w-0 text-left">
+        <span className="page-nav-button-label">{props.label}</span>
+        <span className="page-nav-button-hint">{props.hint}</span>
+      </span>
     </button>
   );
 }
@@ -576,6 +622,14 @@ function App() {
 
   const statusText = actionError || actionMessage || (loadingProjects ? "Refreshing projects..." : "Ready");
   const statusToneClass = actionError ? "status-pill status-pill-error" : "status-pill";
+  const reviewHint = selectedDocumentId
+    ? detail?.sourceName ?? "Selected document"
+    : selectedProjectName
+      ? "Open a document to review"
+      : "Choose a project first";
+  const workspaceHint = selectedProjectName
+    ? `${documentsTotalCount} document${documentsTotalCount === 1 ? "" : "s"} in queue`
+    : "Choose or create a project";
 
   return (
     <main className="app-shell min-h-screen text-[var(--app-text)]">
@@ -652,7 +706,37 @@ function App() {
                     disabled={!selectedProjectName || exporting}
                   />
                   <CommandButton icon={<RefreshIcon />} label="Refresh" onClick={() => void refreshWorkspace()} />
-                  <CommandButton icon={<SettingsIcon />} label="Settings" onClick={() => setActivePage("settings")} />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                <div className="page-nav" role="tablist" aria-label="Workspace views">
+                  <PageNavButton
+                    icon={<WorkspaceIcon />}
+                    label="Workspace"
+                    hint={workspaceHint}
+                    active={activePage === "workspace"}
+                    onClick={() => setActivePage("workspace")}
+                  />
+                  <PageNavButton
+                    icon={<ReviewIcon />}
+                    label="Review"
+                    hint={reviewHint}
+                    active={activePage === "review"}
+                    disabled={!selectedDocumentId}
+                    onClick={() => setActivePage("review")}
+                  />
+                  <PageNavButton
+                    icon={<SettingsIcon />}
+                    label="Settings"
+                    hint="Background worker schedule"
+                    active={activePage === "settings"}
+                    onClick={() => setActivePage("settings")}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <span className={statusToneClass}>{statusText}</span>
                 </div>
               </div>
 
@@ -692,31 +776,6 @@ function App() {
                 </form>
               ) : null}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActivePage("workspace")}
-                  className={`page-chip ${activePage === "workspace" ? "page-chip-active" : ""}`}
-                >
-                  Documents
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage("review")}
-                  disabled={!selectedDocumentId}
-                  className={`page-chip ${activePage === "review" ? "page-chip-active" : ""}`}
-                >
-                  Review
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePage("settings")}
-                  className={`page-chip ${activePage === "settings" ? "page-chip-active" : ""}`}
-                >
-                  Settings
-                </button>
-                <span className={statusToneClass}>{statusText}</span>
-              </div>
             </header>
 
             <div className="mt-4 min-h-0 flex-1 overflow-hidden">

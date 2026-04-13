@@ -31,8 +31,8 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             </div>
             <h2 className="mt-2 text-xl font-semibold text-[var(--app-text)]">No document selected</h2>
           </div>
-          <button type="button" onClick={props.onBack} className="page-chip page-chip-active">
-            Back to documents
+          <button type="button" onClick={props.onBack} className="page-chip">
+            Back to workspace
           </button>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-[var(--app-muted)]">
@@ -62,8 +62,8 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={props.onBack} className="page-chip page-chip-active">
-            Back to documents
+          <button type="button" onClick={props.onBack} className="page-chip">
+            Back to workspace
           </button>
           <button
             type="button"
