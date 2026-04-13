@@ -15,14 +15,11 @@ function ProjectSidebar(props: ProjectSidebarProps) {
 
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel)] p-3 shadow-[inset_0_1px_0_#ffffff05] backdrop-blur-[14px]">
-      <div className="space-y-1 border-b border-[var(--app-border)] pb-3">
+      <div className="border-b border-[var(--app-border)] pb-3">
         <p className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Projects</p>
-        <h2 className="text-base font-semibold tracking-tight text-[var(--app-text)]">Sidebar</h2>
-        <p className="text-sm text-[var(--app-muted)]">Select a project and stay in its queue.</p>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <h2 className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">All projects</h2>
+      <div className="mt-3 flex items-center justify-end">
         {props.loadingProjects ? <span className="text-xs text-[var(--app-muted)]">Updating</span> : null}
       </div>
 
@@ -62,17 +59,6 @@ function ProjectSidebar(props: ProjectSidebarProps) {
                     {project.erroredDocuments} issue{project.erroredDocuments === 1 ? "" : "s"}
                   </span>
                 ) : null}
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-[var(--app-muted)]">
-                <span>
-                  Waiting <span className="mt-1 block text-sm font-semibold text-[var(--app-text)]">{project.queuedDocuments}</span>
-                </span>
-                <span>
-                  Running <span className="mt-1 block text-sm font-semibold text-[var(--app-text)]">{project.processingDocuments}</span>
-                </span>
-                <span>
-                  Ready <span className="mt-1 block text-sm font-semibold text-[var(--app-text)]">{project.completedDocuments}</span>
-                </span>
               </div>
             </button>
           );
