@@ -6,14 +6,6 @@ import { StatCard } from "./app-shared";
 type WorkspacePanelProps = {
   selectedProjectName: string;
   selectedProject: ProjectSummary | null;
-  importing: boolean;
-  exporting: boolean;
-  actionError: string;
-  actionMessage: string;
-  onImportFiles: () => void;
-  onImportFolder: () => void;
-  onRefreshWorkspace: () => void;
-  onExportFiles: () => void;
   workerSchedule: WorkerScheduleStatus | null;
   scheduleStartTime: string;
   scheduleEndTime: string;
@@ -39,52 +31,24 @@ type WorkspacePanelProps = {
 
 function WorkspacePanel(props: WorkspacePanelProps) {
   return (
-    <section className="panel-surface flex h-full min-h-0 flex-col rounded-2xl p-4">
-      <div className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-end lg:justify-between">
+    <section className="panel-surface flex h-full min-h-0 flex-col rounded-2xl p-4 sm:p-5">
+      <div className="desktop-panel-header flex flex-col gap-4 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
-            {props.selectedProjectName ? "Project workspace" : "Workspace overview"}
+            {props.selectedProjectName ? "Main workspace" : "Workspace overview"}
           </p>
-          <h2 className="mt-2 text-2xl font-semibold leading-none tracking-tight text-[var(--app-text)] sm:text-3xl">
+          <h2 className="mt-2 text-xl font-semibold leading-none tracking-tight text-[var(--app-text)] sm:text-2xl">
             {props.selectedProjectName || "Choose or create a project"}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-muted)]">
-            Import source material, monitor throughput, and keep the worker cadence tuned without leaving the main desk.
+            Monitor queue health, worker schedule, and file progress without leaving the current desk.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={props.onImportFiles}
-            disabled={!props.selectedProjectName || props.importing}
-            className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-2 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {props.importing ? "Importing..." : "Import files"}
-          </button>
-          <button
-            type="button"
-            onClick={props.onImportFolder}
-            disabled={!props.selectedProjectName || props.importing}
-            className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-2 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Import folder
-          </button>
-          <button
-            type="button"
-            onClick={props.onRefreshWorkspace}
-            className="metal-pill rounded-full px-4 py-2 text-sm font-medium text-[var(--app-accent-strong)] transition hover:bg-sky-400/16"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={props.onExportFiles}
-            disabled={!props.selectedProjectName || props.exporting}
-            className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {props.exporting ? "Exporting..." : "Export files"}
-          </button>
+        <div className="desktop-workspace-summary grid gap-3 sm:grid-cols-3">
+          <StatCard label="Queued" value={props.selectedProject?.queuedDocuments ?? 0} accent="text-amber-300" />
+          <StatCard label="Active" value={props.selectedProject?.processingDocuments ?? 0} accent="text-sky-300" />
+          <StatCard label="Ready" value={props.selectedProject?.completedDocuments ?? 0} accent="text-emerald-300" />
         </div>
       </div>
 
@@ -94,18 +58,6 @@ function WorkspacePanel(props: WorkspacePanelProps) {
         <StatCard label="In progress" value={props.selectedProject?.processingDocuments ?? 0} accent="text-sky-300" />
         <StatCard label="Ready" value={props.selectedProject?.completedDocuments ?? 0} accent="text-emerald-300" />
       </div>
-
-      {props.actionError ? (
-        <div className="mt-4 rounded-lg border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-          {props.actionError}
-        </div>
-      ) : null}
-
-      {!props.actionError && props.actionMessage ? (
-        <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-          {props.actionMessage}
-        </div>
-      ) : null}
 
       <WorkerScheduleCard
         workerSchedule={props.workerSchedule}

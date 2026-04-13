@@ -1,0 +1,137 @@
+.desktop-command-surface {
+  border: 1px solid var(--app-border);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(9, 14, 27, 0.9));
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.28);
+}
+
+.desktop-command-row {
+  min-height: 44px;
+}
+
+.desktop-command-groups {
+  flex-shrink: 0;
+}
+
+.desktop-create-panel {
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.desktop-create-help {
+  max-width: 24rem;
+}
+
+.desktop-status-row {
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.command-button,
+.command-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--app-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.command-button {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+}
+
+.command-icon-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+}
+
+.command-button:hover,
+.command-icon-button:hover {
+  border-color: var(--app-border-strong);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.command-button:disabled,
+.command-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.command-button-primary {
+  border-color: rgba(103, 183, 255, 0.42);
+  background: linear-gradient(135deg, #67b7ff, #468cf3);
+  color: #04101d;
+}
+
+.command-button-primary:hover {
+  border-color: rgba(103, 183, 255, 0.42);
+  background: linear-gradient(135deg, #7cc2ff, #4f92f3);
+}
+
+.command-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+}
+
+.command-button-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  max-width: 100%;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--app-text);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.status-pill-error {
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(251, 113, 133, 0.12);
+  color: #ffe4e6;
+}
+
+.desktop-document-row-selected {
+  background: linear-gradient(90deg, rgba(103, 183, 255, 0.16), rgba(255, 255, 255, 0.02));
+}
+
+.desktop-documents-table tbody tr:hover td {
+  background-clip: padding-box;
+}
+
+.desktop-project-item {
+  backdrop-filter: blur(14px);
+}
+
+@media (max-width: 900px) {
+  .desktop-command-groups {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .desktop-create-help {
+    max-width: none;
+  }
+
+  .status-pill {
+    white-space: normal;
+  }
+}

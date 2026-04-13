@@ -18,10 +18,10 @@ type DocumentsTableProps = {
 
 function DocumentsTable(props: DocumentsTableProps) {
   return (
-    <div className="panel-soft mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg">
+    <div className="panel-soft mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
       <div className="flex items-center justify-between border-b border-[var(--app-border)] px-4 py-3">
         <div>
-          <h3 className="text-lg font-semibold text-[var(--app-text)]">Documents</h3>
+          <h3 className="text-base font-semibold text-[var(--app-text)]">Documents</h3>
           <p className="mt-1 text-sm text-[var(--app-muted)]">
             {props.selectedProjectName
               ? "See where each file is in the workflow and open one for more detail."
@@ -48,7 +48,7 @@ function DocumentsTable(props: DocumentsTableProps) {
         </div>
       ) : (
         <div className="min-h-0 overflow-auto">
-          <table className="min-w-full border-separate border-spacing-0 text-left">
+          <table className="desktop-documents-table min-w-full border-separate border-spacing-0 text-left">
             <thead>
               <tr className="font-mono-ui text-[11px] uppercase tracking-[0.18em] text-[var(--app-muted)]">
                 <th className="px-4 py-3 font-medium">Document</th>
@@ -66,7 +66,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                   <tr
                     key={document.id}
                     onClick={() => props.onSelectDocument(document.id)}
-                    className={`cursor-pointer transition ${selected ? "bg-[linear-gradient(90deg,rgba(103,183,255,0.16),rgba(255,255,255,0.02))]" : "hover:bg-white/4"}`}
+                    className={`cursor-pointer transition ${selected ? "desktop-document-row-selected" : "hover:bg-white/4"}`}
                   >
                     <td className="border-t border-[var(--app-border)] px-4 py-3.5 align-top">
                       <div className="max-w-[420px] truncate text-sm font-medium text-[var(--app-text)]">

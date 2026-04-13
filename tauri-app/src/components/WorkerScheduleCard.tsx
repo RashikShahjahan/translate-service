@@ -18,10 +18,10 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
     props.loadingWorkerSchedule || props.savingWorkerSchedule || props.removingWorkerSchedule;
 
   return (
-    <section className="panel-soft mt-4 rounded-lg p-4 sm:p-5">
+    <section className="panel-soft mt-4 rounded-xl p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-[var(--app-text)]">Worker schedule</h3>
+          <h3 className="text-base font-semibold text-[var(--app-text)]">Worker schedule</h3>
           <p className="mt-1 max-w-2xl text-sm text-[var(--app-muted)]">
             Run the background worker on a daily macOS schedule without leaving a terminal open.
           </p>
@@ -63,7 +63,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
       {props.workerSchedule?.supported ? (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs font-medium text-stone-500">
+            <label className="block text-xs font-medium text-[var(--app-muted)]">
               Start time
               <input
                 type="time"

@@ -13,8 +13,8 @@ function ProjectSidebar(props: ProjectSidebarProps) {
     <aside className="panel-surface flex h-full min-h-0 flex-col rounded-2xl p-3">
       <div className="space-y-1 border-b border-[var(--app-border)] pb-3">
         <p className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Projects</p>
-        <h2 className="text-lg font-semibold tracking-tight text-[var(--app-text)]">Workspace index</h2>
-        <p className="text-sm text-[var(--app-muted)]">Recent runs, queue counts, and document health.</p>
+        <h2 className="text-base font-semibold tracking-tight text-[var(--app-text)]">Workspace index</h2>
+        <p className="text-sm text-[var(--app-muted)]">Recent queues, running work, and issue counts.</p>
       </div>
 
       <div className="mt-3 flex items-center justify-between">
@@ -37,9 +37,9 @@ function ProjectSidebar(props: ProjectSidebarProps) {
               key={project.id}
               type="button"
               onClick={() => props.onSelectProject(project.name)}
-              className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+              className={`desktop-project-item w-full rounded-xl border px-3 py-3 text-left transition ${
                 selected
-                  ? "border-[var(--app-border-strong)] bg-sky-400/8"
+                  ? "border-[var(--app-border-strong)] bg-sky-400/8 shadow-[0_10px_30px_rgba(15,23,42,0.22)]"
                   : "border-[var(--app-border)] bg-white/4 hover:border-[var(--app-border-strong)] hover:bg-white/6"
               }`}
             >

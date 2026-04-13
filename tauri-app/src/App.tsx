@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
+import { useEffect, useEffectEvent, useState, type FormEvent, type ReactNode } from "react";
 
 import DocumentDetailPanel from "./components/DocumentDetailPanel";
 import ProjectSidebar from "./components/ProjectSidebar";
@@ -23,6 +23,14 @@ const MIN_DETAIL_WIDTH = 280;
 const MAX_DETAIL_WIDTH = 520;
 const DESKTOP_GUTTER_WIDTH = 6;
 
+const STORAGE_KEYS = {
+  showProjects: "tauri-app.show-projects",
+  showDocumentDetail: "tauri-app.show-document-detail",
+  sidebarWidth: "tauri-app.sidebar-width",
+  detailWidth: "tauri-app.detail-width",
+  selectedProjectName: "tauri-app.selected-project-name",
+};
+
 function messageFromError(error: unknown) {
   if (typeof error === "string") {
     return error;
@@ -33,6 +41,38 @@ function messageFromError(error: unknown) {
   }
 
   return "Something went wrong.";
+}
+
+function readStoredBoolean(key: string, fallback: boolean) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const value = window.localStorage.getItem(key);
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  return fallback;
+}
+
+function readStoredNumber(key: string, fallback: number) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const value = Number(window.localStorage.getItem(key));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function readStoredString(key: string, fallback = "") {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  return window.localStorage.getItem(key) ?? fallback;
 }
 
 async function selectFilePaths(options: {
@@ -52,38 +92,109 @@ async function selectFilePaths(options: {
   return Array.isArray(selection) ? selection : [selection];
 }
 
-type ViewToggleCardProps = {
-  label: string;
-  description: string;
-  enabled: boolean;
-  onToggle: () => void;
+type IconProps = {
+  children: ReactNode;
 };
 
-function ViewToggleCard(props: ViewToggleCardProps) {
+function ToolbarIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      {props.children}
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M10 4.5v11" />
+      <path d="M4.5 10h11" />
+    </ToolbarIcon>
+  );
+}
+
+function FileIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M6 3.5h5l3 3V16a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 5 16V5A1.5 1.5 0 0 1 6.5 3.5Z" />
+      <path d="M11 3.5V7h3" />
+    </ToolbarIcon>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h4l1.4 1.5H16A1.5 1.5 0 0 1 17.5 8v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5Z" />
+    </ToolbarIcon>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M10 13V4.5" />
+      <path d="M6.5 8 10 4.5 13.5 8" />
+      <path d="M4.5 12.5v2A1.5 1.5 0 0 0 6 16h8a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    </ToolbarIcon>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <ToolbarIcon>
+      <path d="M15.5 8A5.5 5.5 0 1 0 16 12" />
+      <path d="M12.5 4.5h3V7.5" />
+    </ToolbarIcon>
+  );
+}
+
+function SidebarIcon() {
+  return (
+    <ToolbarIcon>
+      <rect x="3.5" y="4" width="13" height="12" rx="1.5" />
+      <path d="M8 4v12" />
+    </ToolbarIcon>
+  );
+}
+
+function InspectorIcon() {
+  return (
+    <ToolbarIcon>
+      <rect x="3.5" y="4" width="13" height="12" rx="1.5" />
+      <path d="M12 4v12" />
+    </ToolbarIcon>
+  );
+}
+
+type CommandButtonProps = {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "secondary" | "utility";
+  title?: string;
+};
+
+function CommandButton(props: CommandButtonProps) {
+  const className =
+    props.variant === "primary"
+      ? "command-button command-button-primary"
+      : props.variant === "utility"
+        ? "command-icon-button"
+        : "command-button";
+
   return (
     <button
       type="button"
-      onClick={props.onToggle}
-      aria-pressed={props.enabled}
-      className={`flex w-full items-start justify-between gap-4 rounded-lg border px-4 py-3 text-left transition ${
-        props.enabled
-          ? "border-[var(--app-border-strong)] bg-[linear-gradient(135deg,rgba(103,183,255,0.18),rgba(255,255,255,0.03))] text-[var(--app-text)] shadow-[0_14px_30px_rgba(2,6,23,0.28)]"
-          : "border-[var(--app-border)] bg-white/4 text-[var(--app-text)] hover:bg-white/6"
-      }`}
+      onClick={props.onClick}
+      disabled={props.disabled}
+      className={className}
+      title={props.title ?? props.label}
+      aria-label={props.label}
     >
-      <div>
-        <div className="text-sm font-semibold">{props.label}</div>
-        <div className={`mt-1 text-sm leading-5 ${props.enabled ? "text-[var(--app-text)]/80" : "text-[var(--app-muted)]"}`}>
-          {props.description}
-        </div>
-      </div>
-      <span
-        className={`inline-flex min-w-14 justify-center rounded-full px-3 py-1 text-xs font-semibold ${
-          props.enabled ? "bg-sky-400/14 text-[var(--app-accent-strong)]" : "bg-white/6 text-[var(--app-muted)]"
-        }`}
-      >
-        {props.enabled ? "On" : "Off"}
-      </span>
+      <span className="command-button-icon">{props.icon}</span>
+      {props.variant === "utility" ? null : <span>{props.label}</span>}
     </button>
   );
 }
@@ -93,7 +204,9 @@ function App() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [documentsPage, setDocumentsPage] = useState(1);
   const [documentsTotalCount, setDocumentsTotalCount] = useState(0);
-  const [selectedProjectName, setSelectedProjectName] = useState("");
+  const [selectedProjectName, setSelectedProjectName] = useState(() =>
+    readStoredString(STORAGE_KEYS.selectedProjectName),
+  );
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [projectNameInput, setProjectNameInput] = useState("");
@@ -111,11 +224,13 @@ function App() {
   const [removingWorkerSchedule, setRemovingWorkerSchedule] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
-  const [showProjects, setShowProjects] = useState(true);
-  const [showWorkspace, setShowWorkspace] = useState(true);
-  const [showDocumentDetail, setShowDocumentDetail] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [detailWidth, setDetailWidth] = useState(360);
+  const [showProjects, setShowProjects] = useState(() => readStoredBoolean(STORAGE_KEYS.showProjects, true));
+  const [showDocumentDetail, setShowDocumentDetail] = useState(() =>
+    readStoredBoolean(STORAGE_KEYS.showDocumentDetail, true),
+  );
+  const [sidebarWidth, setSidebarWidth] = useState(() => readStoredNumber(STORAGE_KEYS.sidebarWidth, 272));
+  const [detailWidth, setDetailWidth] = useState(() => readStoredNumber(STORAGE_KEYS.detailWidth, 360));
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
 
   const selectedProject =
     projects.find((project) => project.name === selectedProjectName) ?? null;
@@ -125,6 +240,7 @@ function App() {
     setProjectNameInput("");
     setDocumentsPage(1);
     setSelectedProjectName(createdProject.name);
+    setShowCreatePanel(false);
     await refreshProjects(false);
     setSelectedProjectName(createdProject.name);
     setActionMessage(`Project ${createdProject.name} is ready.`);
@@ -140,6 +256,7 @@ function App() {
       setProjectNameInput("");
       setDocumentsPage(1);
       setSelectedProjectName(createdProject.name);
+      setShowCreatePanel(false);
       await refreshProjects(false);
       setSelectedProjectName(createdProject.name);
       setActionMessage(`Project ${createdProject.name} is ready.`);
@@ -224,6 +341,7 @@ function App() {
     await refreshDocuments(selectedProjectName, documentsPage, false);
     await refreshDetail(selectedDocumentId, false);
     await refreshWorkerSchedule(false);
+    setActionMessage("Workspace refreshed.");
   }
 
   async function refreshWorkerSchedule(silent = false) {
@@ -409,10 +527,30 @@ function App() {
     return () => window.clearInterval(interval);
   }, [selectedDocumentId]);
 
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.showProjects, String(showProjects));
+  }, [showProjects]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.showDocumentDetail, String(showDocumentDetail));
+  }, [showDocumentDetail]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.sidebarWidth, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.detailWidth, String(detailWidth));
+  }, [detailWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.selectedProjectName, selectedProjectName);
+  }, [selectedProjectName]);
+
   const handleMenuCommand = useEffectEvent((command: string) => {
     switch (command) {
       case "new-project":
-        void createUntitledProject();
+        setShowCreatePanel(true);
         break;
       case "import-files":
         void importProjectInputs(false);
@@ -465,8 +603,6 @@ function App() {
   const documentsRangeEnd =
     documentsTotalCount === 0 ? 0 : Math.min(documentsTotalCount, documentsPage * DOCUMENTS_PAGE_SIZE);
 
-  const visibleSections = Number(showProjects) + Number(showWorkspace) + Number(showDocumentDetail);
-
   useEffect(() => {
     function stopDragging() {
       document.body.style.cursor = "";
@@ -514,7 +650,7 @@ function App() {
     window.addEventListener("pointerup", handlePointerUp);
   }
 
-  const shellGridTemplateColumns = [
+  const contentGridTemplateColumns = [
     showProjects ? `${sidebarWidth}px` : null,
     showProjects ? `${DESKTOP_GUTTER_WIDTH}px` : null,
     "minmax(0,1fr)",
@@ -524,213 +660,163 @@ function App() {
     .filter(Boolean)
     .join(" ");
 
+  const scheduleSummary = loadingWorkerSchedule
+    ? "Checking worker schedule"
+    : workerSchedule?.supported
+      ? workerSchedule.installed
+        ? `Worker schedule ${workerSchedule.startTime}-${workerSchedule.endTime}`
+        : "Worker schedule disabled"
+      : "Scheduling available on macOS";
+
+  const statusText = actionError || actionMessage || (loadingProjects ? "Refreshing projects..." : "Ready");
+  const statusToneClass = actionError ? "status-pill status-pill-error" : "status-pill";
+
   return (
     <main className="h-screen overflow-hidden p-2 text-[var(--app-text)]">
-      <div
-        className="shell-frame topbar-glow mx-auto grid h-[calc(100vh-1rem)] max-w-[1760px] grid-rows-[40px_minmax(0,1fr)] gap-y-3 rounded-[16px] p-3"
-        style={{ gridTemplateColumns: shellGridTemplateColumns }}
-      >
-        <div className="desktop-titlebar col-span-full flex items-center justify-between rounded-[14px] px-3">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-            <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-          </div>
-          <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">
-            Translate Service
-          </div>
-          <div className="text-xs text-[var(--app-muted)]">Desktop workspace</div>
-        </div>
-
-        {showProjects ? (
-          <div className="min-h-0">
-            <ProjectSidebar
-              projects={projects}
-              selectedProjectName={selectedProjectName}
-              loadingProjects={loadingProjects}
-              onSelectProject={(name) => {
-                setDocumentsPage(1);
-                setSelectedProjectName(name);
-              }}
-            />
-          </div>
-        ) : null}
-
-        {showProjects && showWorkspace ? (
-          <div className="pane-resizer min-h-0" onPointerDown={beginSidebarResize} role="separator" aria-orientation="vertical" />
-        ) : null}
-
-        <div className="min-h-0 min-w-0 space-y-3 overflow-auto pr-1">
-          <section className="panel-surface overflow-hidden rounded-2xl">
-            <div className="p-4 sm:p-5">
-              <div className="flex flex-col gap-3 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
-                    Workspace
-                  </div>
-                  <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text)] sm:text-2xl">
-                    Translation operations
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm text-[var(--app-muted)]">
-                    Create projects, import source material, and inspect output in one desktop workspace.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
-                  <div className="panel-soft rounded-lg p-4">
-                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Selected</div>
-                    <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text)]">
-                      {selectedProjectName || "No project selected"}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--app-muted)]">
-                      {selectedProject
-                        ? `${selectedProject.totalDocuments} document${selectedProject.totalDocuments === 1 ? "" : "s"}`
-                        : "Pick a project from the sidebar."}
-                    </div>
-                  </div>
-                  <div className="panel-soft rounded-lg p-4">
-                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Visible panels</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{visibleSections}/3</div>
-                    <div className="mt-1 text-xs text-[var(--app-muted)]">Projects, workspace, and document detail.</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void createUntitledProject()}
-                    disabled={creatingProject}
-                    className="rounded-lg border border-[var(--app-border-strong)] bg-[linear-gradient(135deg,rgba(103,183,255,0.16),rgba(70,140,243,0.06))] p-4 text-left transition hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-accent-strong)]">Quick create</div>
-                    <div className="mt-2 text-sm font-semibold text-[var(--app-text)]">
-                      {creatingProject ? "Creating project..." : "Create untitled project"}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--app-text)]/70">Fastest way to start a new import queue.</div>
-                  </button>
-                </div>
+      <div className="shell-frame mx-auto flex h-[calc(100vh-1rem)] max-w-[1760px] flex-col gap-3 rounded-[16px] p-3">
+        <header className="desktop-command-surface rounded-2xl px-4 py-3 sm:px-5">
+          <div className="desktop-command-row flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
+                Translator Service
               </div>
+              <div className="mt-1 text-sm text-[var(--app-muted)]">
+                Desktop translation workspace for projects, queues, and document review.
+              </div>
+            </div>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
-                <form className="panel-soft rounded-xl p-4 sm:p-5" onSubmit={handleCreateProject}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <label className="font-mono-ui block text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
-                        New project
-                      </label>
-                      <p className="mt-2 text-sm text-[var(--app-muted)]">Use a short descriptive name so imports stay easy to scan.</p>
-                    </div>
-                    <div className="metal-pill rounded-full px-3 py-1 text-xs font-medium text-[var(--app-accent-strong)]">Create</div>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+            <div className="desktop-command-groups flex flex-wrap items-center justify-end gap-2">
+              <CommandButton
+                icon={<PlusIcon />}
+                label="New Project"
+                variant="primary"
+                onClick={() => setShowCreatePanel((current) => !current)}
+                title={showCreatePanel ? "Hide project creation" : "Create a new project"}
+              />
+              <CommandButton
+                icon={<FileIcon />}
+                label={importing ? "Importing..." : "Import Files"}
+                onClick={() => void importProjectInputs(false)}
+                disabled={!selectedProjectName || importing}
+              />
+              <CommandButton
+                icon={<FolderIcon />}
+                label="Import Folder"
+                onClick={() => void importProjectInputs(true)}
+                disabled={!selectedProjectName || importing}
+              />
+              <CommandButton
+                icon={<ExportIcon />}
+                label={exporting ? "Exporting..." : "Export"}
+                onClick={() => void exportProjectFiles()}
+                disabled={!selectedProjectName || exporting}
+              />
+              <CommandButton
+                icon={<RefreshIcon />}
+                label="Refresh"
+                variant="utility"
+                onClick={() => void refreshWorkspace()}
+              />
+              <CommandButton
+                icon={<SidebarIcon />}
+                label="Toggle projects"
+                variant="utility"
+                onClick={() => setShowProjects((current) => !current)}
+                title={showProjects ? "Hide projects sidebar" : "Show projects sidebar"}
+              />
+              <CommandButton
+                icon={<InspectorIcon />}
+                label="Toggle detail"
+                variant="utility"
+                onClick={() => setShowDocumentDetail((current) => !current)}
+                title={showDocumentDetail ? "Hide document detail" : "Show document detail"}
+              />
+            </div>
+          </div>
+
+          {showCreatePanel ? (
+            <form className="desktop-create-panel mt-3 rounded-xl p-3 sm:p-4" onSubmit={handleCreateProject}>
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <label className="font-mono-ui block text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
+                    New project
+                  </label>
+                  <div className="mt-2 flex flex-col gap-3 lg:flex-row">
                     <input
                       value={projectNameInput}
                       onChange={(event) => setProjectNameInput(event.currentTarget.value)}
                       placeholder="spring-catalog"
-                      className="min-w-0 flex-1 rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
+                      className="desktop-input min-w-0 flex-1 rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
                     />
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="submit"
-                        disabled={creatingProject}
-                      className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-5 py-3 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={creatingProject || !projectNameInput.trim()}
+                        className="command-button command-button-primary"
                       >
-                        {creatingProject ? "Creating..." : "Create named project"}
+                        <span className="command-button-icon">
+                          <PlusIcon />
+                        </span>
+                        <span>{creatingProject ? "Creating..." : "Create Named Project"}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => void createUntitledProject()}
                         disabled={creatingProject}
-                        className="rounded-full border border-[var(--app-border)] bg-white/6 px-5 py-3 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="command-button"
                       >
-                        Use untitled
+                        <span className="command-button-icon">
+                          <PlusIcon />
+                        </span>
+                        <span>Use Untitled</span>
                       </button>
                     </div>
                   </div>
-                </form>
-
-                <div className="panel-soft rounded-xl p-4 sm:p-5 text-[var(--app-text)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="font-mono-ui text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">Layout</div>
-                      <p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">Keep only the panels you want visible.</p>
-                    </div>
-                    <div className="rounded-full border border-[var(--app-border)] bg-white/6 px-3 py-1 text-xs font-semibold text-[var(--app-text)]">
-                      {visibleSections}/3 visible
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    <ViewToggleCard
-                      label="Projects drawer"
-                      description="Browse and switch projects from the left side."
-                      enabled={showProjects}
-                      onToggle={() => setShowProjects((current) => !current)}
-                    />
-                    <ViewToggleCard
-                      label="Workspace section"
-                      description="Keep imports, schedule, status, and documents open."
-                      enabled={showWorkspace}
-                      onToggle={() => setShowWorkspace((current) => !current)}
-                    />
-                    <ViewToggleCard
-                      label="Document detail"
-                      description="Open the selected document in the right rail."
-                      enabled={showDocumentDetail}
-                      onToggle={() => setShowDocumentDetail((current) => !current)}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProjects(false);
-                        setShowWorkspace(false);
-                        setShowDocumentDetail(false);
-                      }}
-                      className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-2 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10"
-                    >
-                      Focus create
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProjects(true);
-                        setShowWorkspace(true);
-                        setShowDocumentDetail(true);
-                      }}
-                      className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105"
-                    >
-                      Show all
-                    </button>
-                  </div>
+                </div>
+                <div className="desktop-create-help text-sm text-[var(--app-muted)]">
+                  Create a named project for a durable queue, or use an untitled one to start importing immediately.
                 </div>
               </div>
+            </form>
+          ) : null}
 
-              {actionError ? (
-                <div className="mt-4 rounded-lg border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-                  {actionError}
-                </div>
-              ) : null}
+          <div className="desktop-status-row mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2.5">
+            <span className="status-pill">
+              {selectedProjectName ? `Project: ${selectedProjectName}` : "No project selected"}
+            </span>
+            <span className="status-pill">
+              {selectedProject
+                ? `${selectedProject.totalDocuments} document${selectedProject.totalDocuments === 1 ? "" : "s"}`
+                : "Create or select a project to begin"}
+            </span>
+            <span className="status-pill">{scheduleSummary}</span>
+            <span className={statusToneClass}>{statusText}</span>
+          </div>
+        </header>
 
-              {!actionError && actionMessage ? (
-                <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-                  {actionMessage}
-                </div>
-              ) : null}
+        <div className="min-h-0 flex-1 grid" style={{ gridTemplateColumns: contentGridTemplateColumns, gap: "12px" }}>
+          {showProjects ? (
+            <div className="min-h-0">
+              <ProjectSidebar
+                projects={projects}
+                selectedProjectName={selectedProjectName}
+                loadingProjects={loadingProjects}
+                onSelectProject={(name) => {
+                  setDocumentsPage(1);
+                  setSelectedProjectName(name);
+                }}
+              />
             </div>
-          </section>
+          ) : null}
 
-          {showWorkspace ? (
+          {showProjects ? (
+            <div className="pane-resizer min-h-0" onPointerDown={beginSidebarResize} role="separator" aria-orientation="vertical" />
+          ) : null}
+
+          <div className="min-h-0 min-w-0">
             <WorkspacePanel
               selectedProjectName={selectedProjectName}
               selectedProject={selectedProject}
-              importing={importing}
-              exporting={exporting}
-              actionError=""
-              actionMessage=""
-              onImportFiles={() => void importProjectInputs(false)}
-              onImportFolder={() => void importProjectInputs(true)}
-              onRefreshWorkspace={() => void refreshWorkspace()}
-              onExportFiles={() => void exportProjectFiles()}
               workerSchedule={workerSchedule}
               scheduleStartTime={scheduleStartTime}
               scheduleEndTime={scheduleEndTime}
@@ -756,18 +842,18 @@ function App() {
               onPreviousPage={() => setDocumentsPage((current) => Math.max(1, current - 1))}
               onNextPage={() => setDocumentsPage((current) => Math.min(documentsTotalPages, current + 1))}
             />
+          </div>
+
+          {showDocumentDetail ? (
+            <div className="pane-resizer min-h-0" onPointerDown={beginDetailResize} role="separator" aria-orientation="vertical" />
+          ) : null}
+
+          {showDocumentDetail ? (
+            <div className="min-h-0">
+              <DocumentDetailPanel detail={detail} loadingDetail={loadingDetail} />
+            </div>
           ) : null}
         </div>
-
-        {showWorkspace && showDocumentDetail ? (
-          <div className="pane-resizer min-h-0" onPointerDown={beginDetailResize} role="separator" aria-orientation="vertical" />
-        ) : null}
-
-        {showDocumentDetail ? (
-          <div className="min-h-0">
-            <DocumentDetailPanel detail={detail} loadingDetail={loadingDetail} />
-          </div>
-        ) : null}
       </div>
     </main>
   );

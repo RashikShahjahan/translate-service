@@ -12,7 +12,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
       <div className="flex items-center justify-between border-b border-[var(--app-border)] pb-4">
         <div>
           <p className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Document</p>
-          <h3 className="mt-2 text-lg font-semibold tracking-tight text-[var(--app-text)]">
+          <h3 className="mt-2 text-base font-semibold tracking-tight text-[var(--app-text)]">
             {props.detail?.sourceName ?? "No selection"}
           </h3>
         </div>
@@ -26,11 +26,11 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
       ) : (
         <div className="mt-4 min-h-0 space-y-4 overflow-auto pr-1">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="panel-soft rounded-lg p-4">
+            <div className="panel-soft rounded-xl p-4">
               <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Source type</div>
               <div className="mt-2 text-sm font-medium capitalize text-[var(--app-text)]">{props.detail.sourceType}</div>
             </div>
-            <div className="panel-soft rounded-lg p-4">
+            <div className="panel-soft rounded-xl p-4">
               <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Status</div>
               <div className="mt-2">
                 <StatusBadge status={props.detail.status} />
@@ -38,7 +38,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             </div>
           </div>
 
-          <div className="panel-soft rounded-lg p-4">
+          <div className="panel-soft rounded-xl p-4">
             <div className="grid gap-3 text-sm text-[var(--app-muted)] sm:grid-cols-2">
               <div>
                 <span>Project</span>
