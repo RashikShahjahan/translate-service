@@ -14,6 +14,9 @@ const MENU_IMPORT_FOLDER: &str = "file.import-folder";
 const MENU_EXPORT_FILES: &str = "file.export-files";
 const MENU_REFRESH: &str = "file.refresh";
 const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
+const WORKER_LABEL: &str = "local.translate-service.worker";
+const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
+const DEFAULT_WORKER_ACTIVE_END_TIME: &str = "08:00";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +75,17 @@ struct DocumentDetail {
     updated_at: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkerScheduleStatus {
+    supported: bool,
+    installed: bool,
+    loaded: bool,
+    start_time: String,
+    end_time: String,
+    plist_path: String,
+}
+
 fn repo_root() -> Result<PathBuf, String> {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -95,6 +109,116 @@ fn open_database() -> Result<Connection, String> {
         .map_err(|error| format!("Failed to open database: {error}"))?;
     ensure_schema(&connection)?;
     Ok(connection)
+}
+
+fn installed_worker_plist_path() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|error| format!("Failed to read HOME: {error}"))?;
+    Ok(PathBuf::from(home)
+        .join("Library")
+        .join("LaunchAgents")
+        .join(format!("{WORKER_LABEL}.plist")))
+}
+
+fn launch_agent_domain() -> Result<String, String> {
+    let output = Command::new("id")
+        .arg("-u")
+        .output()
+        .map_err(|error| format!("Failed to read current user id: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("Failed to read current user id: {}", output.status)
+        } else {
+            stderr
+        });
+    }
+
+    let user_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if user_id.is_empty() {
+        return Err("Current user id was empty".to_string());
+    }
+
+    Ok(format!("gui/{user_id}"))
+}
+
+fn extract_plist_string(contents: &str, key: &str) -> Option<String> {
+    let key_marker = format!("<key>{key}</key>");
+    let key_offset = contents.find(&key_marker)? + key_marker.len();
+    let contents_after_key = &contents[key_offset..];
+    let string_start = contents_after_key.find("<string>")? + "<string>".len();
+    let contents_after_string = &contents_after_key[string_start..];
+    let string_end = contents_after_string.find("</string>")?;
+    Some(contents_after_string[..string_end].trim().to_string())
+}
+
+fn validate_worker_time(value: &str, label: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.len() != 5 || bytes[2] != b':' {
+        return Err(format!("{label} must use HH:MM in 24-hour time"));
+    }
+
+    let hour = trimmed[0..2]
+        .parse::<u8>()
+        .map_err(|_| format!("{label} must use HH:MM in 24-hour time"))?;
+    let minute = trimmed[3..5]
+        .parse::<u8>()
+        .map_err(|_| format!("{label} must use HH:MM in 24-hour time"))?;
+
+    if hour > 23 || minute > 59 {
+        return Err(format!("{label} must use HH:MM in 24-hour time"));
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
+    let plist_path = installed_worker_plist_path()?;
+    let plist_path_string = plist_path.display().to_string();
+
+    if !cfg!(target_os = "macos") {
+        return Ok(WorkerScheduleStatus {
+            supported: false,
+            installed: false,
+            loaded: false,
+            start_time: DEFAULT_WORKER_ACTIVE_START_TIME.to_string(),
+            end_time: DEFAULT_WORKER_ACTIVE_END_TIME.to_string(),
+            plist_path: plist_path_string,
+        });
+    }
+
+    if !plist_path.exists() {
+        return Ok(WorkerScheduleStatus {
+            supported: true,
+            installed: false,
+            loaded: false,
+            start_time: DEFAULT_WORKER_ACTIVE_START_TIME.to_string(),
+            end_time: DEFAULT_WORKER_ACTIVE_END_TIME.to_string(),
+            plist_path: plist_path_string,
+        });
+    }
+
+    let contents = fs::read_to_string(&plist_path)
+        .map_err(|error| format!("Failed to read installed LaunchAgent: {error}"))?;
+    let domain = launch_agent_domain()?;
+    let target = format!("{domain}/{WORKER_LABEL}");
+    let loaded = Command::new("launchctl")
+        .args(["print", target.as_str()])
+        .output()
+        .map(|output| output.status.success())
+        .map_err(|error| format!("Failed to inspect LaunchAgent status: {error}"))?;
+
+    Ok(WorkerScheduleStatus {
+        supported: true,
+        installed: true,
+        loaded,
+        start_time: extract_plist_string(&contents, "WORKER_ACTIVE_START_TIME")
+            .unwrap_or_else(|| DEFAULT_WORKER_ACTIVE_START_TIME.to_string()),
+        end_time: extract_plist_string(&contents, "WORKER_ACTIVE_END_TIME")
+            .unwrap_or_else(|| DEFAULT_WORKER_ACTIVE_END_TIME.to_string()),
+        plist_path: plist_path_string,
+    })
 }
 
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
@@ -595,6 +719,69 @@ fn export_project(project_name: String, output_dir: Option<String>) -> Result<Ve
     Ok(outputs)
 }
 
+#[tauri::command]
+fn get_worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
+    worker_schedule_status()
+}
+
+#[tauri::command]
+fn install_worker_schedule(
+    start_time: String,
+    end_time: String,
+) -> Result<WorkerScheduleStatus, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("Worker scheduling is only supported on macOS".to_string());
+    }
+
+    let start_time = validate_worker_time(&start_time, "Start time")?;
+    let end_time = validate_worker_time(&end_time, "End time")?;
+    let repo_root = repo_root()?;
+    let install_script = repo_root.join("scripts").join("install_launch_agent.sh");
+    let output = Command::new("bash")
+        .arg(&install_script)
+        .current_dir(&repo_root)
+        .env("WORKER_ACTIVE_START_TIME", &start_time)
+        .env("WORKER_ACTIVE_END_TIME", &end_time)
+        .output()
+        .map_err(|error| format!("Failed to install worker schedule: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("Failed to install worker schedule: {}", output.status)
+        });
+    }
+
+    worker_schedule_status()
+}
+
+#[tauri::command]
+fn uninstall_worker_schedule() -> Result<WorkerScheduleStatus, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("Worker scheduling is only supported on macOS".to_string());
+    }
+
+    let plist_path = installed_worker_plist_path()?;
+    let domain = launch_agent_domain()?;
+    let target = format!("{domain}/{WORKER_LABEL}");
+
+    let _ = Command::new("launchctl")
+        .args(["bootout", target.as_str()])
+        .output();
+
+    if plist_path.exists() {
+        fs::remove_file(&plist_path)
+            .map_err(|error| format!("Failed to remove installed LaunchAgent: {error}"))?;
+    }
+
+    worker_schedule_status()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -617,7 +804,10 @@ pub fn run() {
             list_documents,
             get_document_detail,
             add_project_inputs,
-            export_project
+            export_project,
+            get_worker_schedule_status,
+            install_worker_schedule,
+            uninstall_worker_schedule
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

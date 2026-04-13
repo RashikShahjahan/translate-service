@@ -52,6 +52,15 @@ type DocumentDetail = {
   updatedAt: string;
 };
 
+type WorkerScheduleStatus = {
+  supported: boolean;
+  installed: boolean;
+  loaded: boolean;
+  startTime: string;
+  endTime: string;
+  plistPath: string;
+};
+
 const POLL_INTERVAL_MS = 4000;
 const DOCUMENTS_PAGE_SIZE = 15;
 const APP_MENU_COMMAND_EVENT = "app-menu-command";
@@ -156,6 +165,12 @@ function App() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [workerSchedule, setWorkerSchedule] = useState<WorkerScheduleStatus | null>(null);
+  const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
+  const [scheduleEndTime, setScheduleEndTime] = useState("08:00");
+  const [loadingWorkerSchedule, setLoadingWorkerSchedule] = useState(true);
+  const [savingWorkerSchedule, setSavingWorkerSchedule] = useState(false);
+  const [removingWorkerSchedule, setRemovingWorkerSchedule] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
 
@@ -267,6 +282,65 @@ function App() {
     await refreshProjects(false);
     await refreshDocuments(selectedProjectName, documentsPage, false);
     await refreshDetail(selectedDocumentId, false);
+    await refreshWorkerSchedule(false);
+  }
+
+  async function refreshWorkerSchedule(silent = false) {
+    if (!silent) {
+      setLoadingWorkerSchedule(true);
+    }
+
+    try {
+      const nextSchedule = await invoke<WorkerScheduleStatus>("get_worker_schedule_status");
+      setWorkerSchedule(nextSchedule);
+      setScheduleStartTime(nextSchedule.startTime);
+      setScheduleEndTime(nextSchedule.endTime);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      if (!silent) {
+        setLoadingWorkerSchedule(false);
+      }
+    }
+  }
+
+  async function saveWorkerSchedule() {
+    setSavingWorkerSchedule(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const nextSchedule = await invoke<WorkerScheduleStatus>("install_worker_schedule", {
+        startTime: scheduleStartTime,
+        endTime: scheduleEndTime,
+      });
+      setWorkerSchedule(nextSchedule);
+      setScheduleStartTime(nextSchedule.startTime);
+      setScheduleEndTime(nextSchedule.endTime);
+      setActionMessage(`Worker schedule saved for ${nextSchedule.startTime} to ${nextSchedule.endTime}.`);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setSavingWorkerSchedule(false);
+    }
+  }
+
+  async function removeWorkerSchedule() {
+    setRemovingWorkerSchedule(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const nextSchedule = await invoke<WorkerScheduleStatus>("uninstall_worker_schedule");
+      setWorkerSchedule(nextSchedule);
+      setScheduleStartTime(nextSchedule.startTime);
+      setScheduleEndTime(nextSchedule.endTime);
+      setActionMessage("Worker schedule disabled.");
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setRemovingWorkerSchedule(false);
+    }
   }
 
   async function refreshProjects(silent = false) {
@@ -357,6 +431,7 @@ function App() {
 
   useEffect(() => {
     void refreshProjects(false);
+    void refreshWorkerSchedule(false);
 
     const interval = window.setInterval(() => {
       void refreshProjects(true);
@@ -625,6 +700,107 @@ function App() {
               {actionMessage}
             </div>
           ) : null}
+
+          <section className="mt-5 rounded-[28px] border border-stone-200/80 bg-stone-50/70 p-4 sm:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-stone-700">Worker schedule</h3>
+                <p className="mt-1 max-w-2xl text-sm text-stone-500">
+                  Run the background worker on a daily macOS schedule without leaving a terminal open.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                {loadingWorkerSchedule ? (
+                  <span className="rounded-full bg-stone-200 px-3 py-1 text-stone-600">
+                    Checking schedule
+                  </span>
+                ) : workerSchedule?.supported ? (
+                  <>
+                    <span
+                      className={`rounded-full px-3 py-1 ${
+                        workerSchedule.installed
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-stone-200 text-stone-600"
+                      }`}
+                    >
+                      {workerSchedule.installed ? "Enabled" : "Disabled"}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 ${
+                        workerSchedule.loaded
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-stone-200 text-stone-600"
+                      }`}
+                    >
+                      {workerSchedule.loaded ? "Loaded in launchd" : "Not loaded"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="rounded-full bg-stone-200 px-3 py-1 text-stone-600">
+                    macOS only
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {workerSchedule?.supported ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-medium text-stone-500">
+                    Start time
+                    <input
+                      type="time"
+                      value={scheduleStartTime}
+                      onChange={(event) => setScheduleStartTime(event.currentTarget.value)}
+                      className="mt-1.5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-500">
+                    End time
+                    <input
+                      type="time"
+                      value={scheduleEndTime}
+                      onChange={(event) => setScheduleEndTime(event.currentTarget.value)}
+                      className="mt-1.5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void saveWorkerSchedule()}
+                    disabled={loadingWorkerSchedule || savingWorkerSchedule || removingWorkerSchedule}
+                    className="rounded-xl bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingWorkerSchedule
+                      ? "Saving..."
+                      : workerSchedule?.installed
+                        ? "Update schedule"
+                        : "Enable schedule"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeWorkerSchedule()}
+                    disabled={!workerSchedule?.installed || savingWorkerSchedule || removingWorkerSchedule}
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {removingWorkerSchedule ? "Disabling..." : "Disable schedule"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-white/70 px-4 py-3 text-sm text-stone-500">
+                This app currently manages worker schedules through macOS LaunchAgents.
+              </div>
+            )}
+
+            {workerSchedule?.supported ? (
+              <div className="mt-4 text-xs text-stone-500">
+                LaunchAgent path: <span className="font-mono text-[11px] text-stone-700">{workerSchedule.plistPath}</span>
+              </div>
+            ) : null}
+          </section>
 
           <div className="mt-5 overflow-hidden rounded-[28px] border border-stone-200/80 bg-stone-50/70">
             <div className="flex items-center justify-between border-b border-stone-200/80 px-4 py-3">
