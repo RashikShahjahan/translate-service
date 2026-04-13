@@ -19,9 +19,9 @@
       <key>UV_BIN</key>
       <string>__UV_BIN__</string>
       <key>WORKER_ACTIVE_START_TIME</key>
-      <string>00:00</string>
+      <string>__WORKER_ACTIVE_START_TIME__</string>
       <key>WORKER_ACTIVE_END_TIME</key>
-      <string>08:00</string>
+      <string>__WORKER_ACTIVE_END_TIME__</string>
     </dict>
 
     <key>RunAtLoad</key>
