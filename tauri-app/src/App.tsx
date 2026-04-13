@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { startTransition, useEffect, useEffectEvent, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 type ProjectSummary = {
   id: number;
@@ -47,14 +47,14 @@ type DocumentDetail = {
 const POLL_INTERVAL_MS = 4000;
 
 const STATUS_STYLES: Record<string, string> = {
-  pending_ocr: "bg-amber-400/12 text-amber-200 ring-1 ring-inset ring-amber-300/20",
+  pending_ocr: "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200",
   processing_ocr:
-    "bg-sky-400/12 text-sky-200 ring-1 ring-inset ring-sky-300/20",
+    "bg-orange-100 text-orange-900 ring-1 ring-inset ring-orange-200",
   pending_translation:
-    "bg-violet-400/12 text-violet-200 ring-1 ring-inset ring-violet-300/20",
+    "bg-fuchsia-100 text-fuchsia-900 ring-1 ring-inset ring-fuchsia-200",
   processing_translation:
-    "bg-cyan-400/12 text-cyan-200 ring-1 ring-inset ring-cyan-300/20",
-  completed: "bg-emerald-400/12 text-emerald-200 ring-1 ring-inset ring-emerald-300/20",
+    "bg-sky-100 text-sky-900 ring-1 ring-inset ring-sky-200",
+  completed: "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-200",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -88,7 +88,7 @@ function getStatusLabel(status: string) {
 }
 
 function getStatusClass(status: string) {
-  return STATUS_STYLES[status] ?? "bg-white/8 text-slate-200 ring-1 ring-inset ring-white/10";
+  return STATUS_STYLES[status] ?? "bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200";
 }
 
 function messageFromError(error: unknown) {
@@ -122,11 +122,11 @@ async function selectFilePaths(options: {
 
 function StatCard(props: { label: string; value: number; accent: string }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/5 p-4 shadow-lg shadow-slate-950/30">
-      <div className={`text-xs font-semibold uppercase tracking-[0.28em] ${props.accent}`}>
+    <div className="rounded-[28px] border border-stone-200/80 bg-white/90 p-5 shadow-sm shadow-stone-200/70">
+      <div className={`text-xs font-medium ${props.accent}`}>
         {props.label}
       </div>
-      <div className="mt-3 text-3xl font-semibold tracking-tight text-white">{props.value}</div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{props.value}</div>
     </div>
   );
 }
@@ -150,7 +150,7 @@ function App() {
   const selectedProject =
     projects.find((project) => project.name === selectedProjectName) ?? null;
 
-  const refreshProjects = useEffectEvent(async (silent = false) => {
+  async function refreshProjects(silent = false) {
     if (!silent) {
       setLoadingProjects(true);
     }
@@ -171,9 +171,9 @@ function App() {
         setLoadingProjects(false);
       }
     }
-  });
+  }
 
-  const refreshDocuments = useEffectEvent(async (projectName: string, silent = false) => {
+  async function refreshDocuments(projectName: string, silent = false) {
     if (!projectName) {
       setDocuments([]);
       setSelectedDocumentId(null);
@@ -201,9 +201,9 @@ function App() {
         setLoadingDocuments(false);
       }
     }
-  });
+  }
 
-  const refreshDetail = useEffectEvent(async (documentId: number | null, silent = false) => {
+  async function refreshDetail(documentId: number | null, silent = false) {
     if (documentId === null) {
       setDetail(null);
       return;
@@ -225,7 +225,7 @@ function App() {
         setLoadingDetail(false);
       }
     }
-  });
+  }
 
   useEffect(() => {
     void refreshProjects(false);
@@ -235,7 +235,7 @@ function App() {
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [refreshProjects]);
+  }, []);
 
   useEffect(() => {
     void refreshDocuments(selectedProjectName, false);
@@ -249,7 +249,7 @@ function App() {
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [refreshDocuments, selectedProjectName]);
+  }, [selectedProjectName]);
 
   useEffect(() => {
     void refreshDetail(selectedDocumentId, false);
@@ -263,7 +263,7 @@ function App() {
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [refreshDetail, selectedDocumentId]);
+  }, [selectedDocumentId]);
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -276,9 +276,7 @@ function App() {
         name: projectNameInput,
       });
       setProjectNameInput("");
-      startTransition(() => {
-        setSelectedProjectName(createdProject.name);
-      });
+      setSelectedProjectName(createdProject.name);
       await refreshProjects(false);
       setSelectedProjectName(createdProject.name);
       setActionMessage(`Project ${createdProject.name} is ready.`);
@@ -365,49 +363,49 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_32%),linear-gradient(180deg,_#020617_0%,_#020617_28%,_#030712_100%)] px-4 py-4 text-slate-100 sm:px-6 sm:py-6">
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-[1700px] grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <aside className="rounded-[28px] border border-white/8 bg-slate-950/70 p-5 shadow-2xl shadow-slate-950/50 backdrop-blur">
+    <main className="min-h-screen px-4 py-5 text-stone-800 sm:px-6 sm:py-6">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1600px] grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1.2fr)_minmax(340px,0.9fr)]">
+        <aside className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-300">
-              Translator Service
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+              Translation Workspace
             </p>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Operations Dashboard</h1>
-            <p className="text-sm leading-6 text-slate-300">
-              Create projects, import source material, watch the queue, and inspect OCR or translation issues without leaving the desktop app.
+            <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Projects</h1>
+            <p className="text-sm leading-6 text-stone-600">
+              Keep each translation job in one place, bring in your files, and check progress without digging through logs.
             </p>
           </div>
 
           <form className="mt-6 space-y-3" onSubmit={handleCreateProject}>
-            <label className="block text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+            <label className="block text-xs font-medium text-stone-500">
               New project
             </label>
             <input
               value={projectNameInput}
               onChange={(event) => setProjectNameInput(event.currentTarget.value)}
-              placeholder="summer-manuscript"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+              placeholder="Spring catalog"
+              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             />
             <button
               type="submit"
               disabled={creatingProject}
-              className="w-full rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-2xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {creatingProject ? "Creating..." : "Create project"}
+              {creatingProject ? "Creating..." : "Start project"}
             </button>
           </form>
 
           <div className="mt-8 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.26em] text-slate-400">
+            <h2 className="text-sm font-medium text-stone-500">
               Projects
             </h2>
-            {loadingProjects ? <span className="text-xs text-slate-500">Syncing</span> : null}
+            {loadingProjects ? <span className="text-xs text-stone-400">Updating</span> : null}
           </div>
 
           <div className="mt-3 space-y-2">
             {projects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/3 p-4 text-sm text-slate-400">
-                No projects yet.
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-4 text-sm text-stone-500">
+                No projects yet. Create one to get started.
               </div>
             ) : null}
 
@@ -419,42 +417,37 @@ function App() {
                   key={project.id}
                   type="button"
                   onClick={() => {
-                    startTransition(() => {
-                      setSelectedProjectName(project.name);
-                    });
+                    setSelectedProjectName(project.name);
                   }}
-                  className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
-                    selected
-                      ? "border-cyan-300/40 bg-cyan-400/12 shadow-lg shadow-cyan-950/20"
-                      : "border-white/8 bg-white/4 hover:border-white/14 hover:bg-white/7"
-                  }`}
+                    className={`w-full rounded-[24px] border px-4 py-3.5 text-left transition ${
+                      selected
+                        ? "border-amber-300 bg-amber-50 shadow-sm shadow-amber-100"
+                        : "border-stone-200 bg-white/85 hover:border-stone-300 hover:bg-white"
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-white">{project.name}</div>
-                      <div className="mt-1 text-xs text-slate-400">
+                      <div className="text-sm font-semibold text-stone-900">{project.name}</div>
+                      <div className="mt-1 text-xs text-stone-500">
                         Created {formatTimestamp(project.createdAt)}
                       </div>
                     </div>
                     {project.erroredDocuments > 0 ? (
-                      <span className="rounded-full bg-rose-400/12 px-2.5 py-1 text-[11px] font-semibold text-rose-200 ring-1 ring-inset ring-rose-300/20">
+                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
                         {project.erroredDocuments} issue{project.erroredDocuments === 1 ? "" : "s"}
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-300">
-                    <div className="rounded-xl bg-slate-900/70 px-2 py-2">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Queued</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{project.queuedDocuments}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-900/70 px-2 py-2">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{project.processingDocuments}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-900/70 px-2 py-2">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Done</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{project.completedDocuments}</div>
-                    </div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
+                    <span>
+                      Waiting <span className="font-semibold text-stone-900">{project.queuedDocuments}</span>
+                    </span>
+                    <span>
+                      In progress <span className="font-semibold text-stone-900">{project.processingDocuments}</span>
+                    </span>
+                    <span>
+                      Ready <span className="font-semibold text-stone-900">{project.completedDocuments}</span>
+                    </span>
                   </div>
                 </button>
               );
@@ -462,26 +455,26 @@ function App() {
           </div>
         </aside>
 
-        <section className="rounded-[28px] border border-white/8 bg-slate-950/55 p-5 shadow-2xl shadow-slate-950/50 backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-white/8 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <section className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
+          <div className="flex flex-col gap-4 border-b border-stone-200/80 pb-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
-                {selectedProjectName ? "Selected project" : "Workspace overview"}
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+                {selectedProjectName ? "Current project" : "Workspace overview"}
               </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">
                 {selectedProjectName || "Choose or create a project"}
               </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                Import files or folders to queue OCR and translation jobs. The dashboard refreshes automatically while work is moving through the service.
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+                Bring in files or a whole folder, then follow the translation progress here. The page keeps itself up to date automatically.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2.5">
               <button
                 type="button"
                 onClick={() => void handleImport(false)}
                 disabled={!selectedProjectName || importing}
-                className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {importing ? "Importing..." : "Add files"}
               </button>
@@ -489,91 +482,91 @@ function App() {
                 type="button"
                 onClick={() => void handleImport(true)}
                 disabled={!selectedProjectName || importing}
-                className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Add folder
               </button>
               <button
                 type="button"
                 onClick={() => void handleRefresh()}
-                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
               >
-                Refresh
+                Refresh view
               </button>
               <button
                 type="button"
                 onClick={() => void handleExport()}
                 disabled={!selectedProjectName || exporting}
-                className="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {exporting ? "Exporting..." : "Export completed"}
+                {exporting ? "Exporting..." : "Export ready files"}
               </button>
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
             <StatCard
-              label="Total documents"
+              label="All documents"
               value={selectedProject?.totalDocuments ?? 0}
-              accent="text-slate-400"
+              accent="text-stone-500"
             />
             <StatCard
-              label="Queued"
+              label="Waiting"
               value={selectedProject?.queuedDocuments ?? 0}
-              accent="text-amber-300"
+              accent="text-amber-700"
             />
             <StatCard
-              label="Processing"
+              label="In progress"
               value={selectedProject?.processingDocuments ?? 0}
-              accent="text-cyan-300"
+              accent="text-orange-700"
             />
             <StatCard
-              label="Completed"
+              label="Ready"
               value={selectedProject?.completedDocuments ?? 0}
-              accent="text-emerald-300"
+              accent="text-emerald-700"
             />
           </div>
 
           {actionError ? (
-            <div className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               {actionError}
             </div>
           ) : null}
 
           {!actionError && actionMessage ? (
-            <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
               {actionMessage}
             </div>
           ) : null}
 
-          <div className="mt-5 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/70">
-            <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+          <div className="mt-5 overflow-hidden rounded-[28px] border border-stone-200/80 bg-stone-50/70">
+            <div className="flex items-center justify-between border-b border-stone-200/80 px-4 py-3">
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.26em] text-slate-400">
+                <h3 className="text-sm font-medium text-stone-700">
                   Documents
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-stone-500">
                   {selectedProjectName
-                    ? "Queue state, retries, and recent document activity."
-                    : "Select a project to browse queued material."}
+                    ? "See where each file is in the workflow and open one for more detail."
+                    : "Select a project to browse its files."}
                 </p>
               </div>
-              {loadingDocuments ? <span className="text-xs text-slate-500">Refreshing</span> : null}
+              {loadingDocuments ? <span className="text-xs text-stone-400">Refreshing</span> : null}
             </div>
 
             {!selectedProjectName ? (
-              <div className="px-4 py-12 text-center text-sm text-slate-400">
-                Create a project to start importing content.
+              <div className="px-4 py-12 text-center text-sm text-stone-500">
+                Create a project to start adding files.
               </div>
             ) : documents.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-slate-400">
-                No documents in this project yet.
+              <div className="px-4 py-12 text-center text-sm text-stone-500">
+                No files in this project yet.
               </div>
             ) : (
               <div className="overflow-auto">
                 <table className="min-w-full border-separate border-spacing-0 text-left">
                   <thead>
-                    <tr className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                    <tr className="text-xs text-stone-500">
                       <th className="px-4 py-3 font-medium">Document</th>
                       <th className="px-4 py-3 font-medium">Type</th>
                       <th className="px-4 py-3 font-medium">Status</th>
@@ -589,44 +582,42 @@ function App() {
                         <tr
                           key={document.id}
                           onClick={() => {
-                            startTransition(() => {
-                              setSelectedDocumentId(document.id);
-                            });
+                            setSelectedDocumentId(document.id);
                           }}
                           className={`cursor-pointer transition ${
-                            selected ? "bg-cyan-400/8" : "hover:bg-white/4"
+                            selected ? "bg-amber-100/80" : "hover:bg-white/70"
                           }`}
                         >
-                          <td className="border-t border-white/6 px-4 py-4 align-top">
-                            <div className="max-w-[420px] truncate text-sm font-medium text-white">
+                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top">
+                            <div className="max-w-[420px] truncate text-sm font-medium text-stone-900">
                               {document.sourceName}
                             </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
                               <span>Created {formatTimestamp(document.createdAt)}</span>
                               {document.errorMessage ? (
-                                <span className="rounded-full bg-rose-400/12 px-2 py-1 text-[11px] font-semibold text-rose-200 ring-1 ring-inset ring-rose-300/20">
-                                  Issue recorded
+                                <span className="rounded-full bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+                                  Needs attention
                                 </span>
                               ) : null}
                             </div>
                           </td>
-                          <td className="border-t border-white/6 px-4 py-4 align-top text-sm capitalize text-slate-300">
+                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm capitalize text-stone-600">
                             {document.sourceType}
                           </td>
-                          <td className="border-t border-white/6 px-4 py-4 align-top">
+                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(document.status)}`}>
                               {getStatusLabel(document.status)}
                             </span>
                             {document.nextAttemptAt ? (
-                              <div className="mt-2 text-xs text-slate-500">
+                              <div className="mt-2 text-xs text-stone-500">
                                 Retry {formatTimestamp(document.nextAttemptAt)}
                               </div>
                             ) : null}
                           </td>
-                          <td className="border-t border-white/6 px-4 py-4 align-top text-sm text-slate-300">
+                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm text-stone-600">
                             {document.retryCount}
                           </td>
-                          <td className="border-t border-white/6 px-4 py-4 align-top text-sm text-slate-300">
+                          <td className="border-t border-stone-200/80 px-4 py-3.5 align-top text-sm text-stone-600">
                             {formatTimestamp(document.updatedAt)}
                           </td>
                         </tr>
@@ -639,34 +630,34 @@ function App() {
           </div>
         </section>
 
-        <aside className="rounded-[28px] border border-white/8 bg-slate-950/70 p-5 shadow-2xl shadow-slate-950/50 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-white/8 pb-4">
+        <aside className="rounded-[32px] border border-white/70 bg-white/78 p-6 shadow-xl shadow-amber-100/40 backdrop-blur">
+          <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
                 Document detail
               </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              <h3 className="mt-2 text-xl font-semibold tracking-tight text-stone-900">
                 {detail?.sourceName ?? "No selection"}
               </h3>
             </div>
-            {loadingDetail ? <span className="text-xs text-slate-500">Refreshing</span> : null}
+            {loadingDetail ? <span className="text-xs text-stone-400">Refreshing</span> : null}
           </div>
 
           {!detail ? (
-            <div className="py-12 text-center text-sm text-slate-400">
-              Select a document to inspect OCR, translated output, and queue diagnostics.
+            <div className="py-12 text-center text-sm text-stone-500">
+              Select a file to read its original text, OCR result, translation, and any issues.
             </div>
           ) : (
-            <div className="mt-5 space-y-5">
+            <div className="mt-5 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <div className="text-[11px] font-medium text-stone-500">
                     Source type
                   </div>
-                  <div className="mt-2 text-sm font-medium capitalize text-white">{detail.sourceType}</div>
+                  <div className="mt-2 text-sm font-medium capitalize text-stone-900">{detail.sourceType}</div>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <div className="text-[11px] font-medium text-stone-500">
                     Status
                   </div>
                   <div className="mt-2">
@@ -677,77 +668,72 @@ function App() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                <div className="grid gap-3 text-sm text-stone-600 sm:grid-cols-2">
                   <div>
-                    <span className="text-slate-500">Project</span>
-                    <div className="mt-1 text-white">{detail.projectName}</div>
+                    <span className="text-stone-500">Project</span>
+                    <div className="mt-1 text-stone-900">{detail.projectName}</div>
                   </div>
                   <div>
-                    <span className="text-slate-500">MIME type</span>
-                    <div className="mt-1 break-all text-white">{detail.mimeType ?? "-"}</div>
+                    <span className="text-stone-500">MIME type</span>
+                    <div className="mt-1 break-all text-stone-900">{detail.mimeType ?? "-"}</div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Updated</span>
-                    <div className="mt-1 text-white">{formatTimestamp(detail.updatedAt)}</div>
+                    <span className="text-stone-500">Updated</span>
+                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.updatedAt)}</div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Retry count</span>
-                    <div className="mt-1 text-white">{detail.retryCount}</div>
+                    <span className="text-stone-500">Retry count</span>
+                    <div className="mt-1 text-stone-900">{detail.retryCount}</div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Next attempt</span>
-                    <div className="mt-1 text-white">{formatTimestamp(detail.nextAttemptAt)}</div>
+                    <span className="text-stone-500">Next attempt</span>
+                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.nextAttemptAt)}</div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Lease acquired</span>
-                    <div className="mt-1 text-white">{formatTimestamp(detail.leasedAt)}</div>
+                    <span className="text-stone-500">Lease acquired</span>
+                    <div className="mt-1 text-stone-900">{formatTimestamp(detail.leasedAt)}</div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Source text
+                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <div className="text-xs font-medium text-stone-500">
+                    Original text
                   </div>
-                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-950/80 p-4 text-sm leading-6 text-slate-200">
+                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-700">
                     {detail.sourceText?.trim() || "No source text stored for this document."}
                   </pre>
                 </section>
 
-                <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <div className="text-xs font-medium text-stone-500">
                     OCR text
                   </div>
-                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-950/80 p-4 text-sm leading-6 text-slate-200">
+                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-700">
                     {detail.ocrText?.trim() || "OCR has not produced text for this document yet."}
                   </pre>
                 </section>
 
-                <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Translated text
+                <section className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <div className="text-xs font-medium text-stone-500">
+                    Translation preview
                   </div>
-                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-950/80 p-4 text-sm leading-6 text-slate-100">
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-stone-800">
                     {detail.translatedText?.trim() || "Translation has not completed for this document yet."}
                   </pre>
                 </section>
               </div>
 
-              <section className="rounded-2xl border border-rose-400/15 bg-rose-400/6 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-200">
-                  Raw debug fields
-                </div>
-                <div className="mt-3 space-y-3 text-sm text-slate-200">
-                  <div>
-                    <div className="text-slate-500">Error message</div>
-                    <pre className="mt-2 whitespace-pre-wrap break-words rounded-2xl bg-slate-950/80 p-4 text-sm leading-6 text-rose-100">
-                      {detail.errorMessage?.trim() || "No error recorded."}
-                    </pre>
-                  </div>
-                </div>
-              </section>
+              {detail.errorMessage ? (
+                <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                  <div className="text-xs font-medium text-rose-700">Needs attention</div>
+                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-2xl bg-white p-4 text-sm leading-6 text-rose-800">
+                    {detail.errorMessage.trim()}
+                  </pre>
+                </section>
+              ) : null}
             </div>
           )}
         </aside>
