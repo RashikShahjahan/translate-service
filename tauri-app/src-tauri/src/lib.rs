@@ -13,6 +13,7 @@ const MENU_IMPORT_FILES: &str = "file.import-files";
 const MENU_IMPORT_FOLDER: &str = "file.import-folder";
 const MENU_EXPORT_FILES: &str = "file.export-files";
 const MENU_REFRESH: &str = "file.refresh";
+const MENU_SETTINGS: &str = "app.settings";
 const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
 const WORKER_LABEL: &str = "local.translate-service.worker";
 const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
@@ -398,9 +399,14 @@ fn build_app_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R
     let refresh = MenuItemBuilder::with_id(MENU_REFRESH, "Refresh")
         .accelerator("CmdOrCtrl+R")
         .build(app)?;
+    let settings = MenuItemBuilder::with_id(MENU_SETTINGS, "Settings...")
+        .accelerator("CmdOrCtrl+,")
+        .build(app)?;
 
     let app_submenu = SubmenuBuilder::new(app, "Translator Service")
         .about(Some(about_metadata))
+        .separator()
+        .item(&settings)
         .separator()
         .services()
         .separator()
@@ -793,6 +799,7 @@ pub fn run() {
             MENU_IMPORT_FOLDER => emit_menu_command(app, "import-folder"),
             MENU_EXPORT_FILES => emit_menu_command(app, "export-files"),
             MENU_REFRESH => emit_menu_command(app, "refresh"),
+            MENU_SETTINGS => emit_menu_command(app, "settings"),
             _ => {}
         })
         .plugin(tauri_plugin_dialog::init())

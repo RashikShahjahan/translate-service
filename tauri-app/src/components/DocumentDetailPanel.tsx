@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { StatusBadge, TextPreviewSection, formatTimestamp } from "./app-shared";
 import type { DocumentDetail } from "../types";
 
@@ -21,6 +23,8 @@ function DetailMeta(props: { label: string; value: string }) {
 }
 
 function DocumentDetailPanel(props: DocumentDetailPanelProps) {
+  const [showMetadata, setShowMetadata] = useState(false);
+
   if (!props.detail) {
     return (
       <section className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--app-border)] bg-white/3 p-6">
@@ -45,7 +49,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white/3 p-6">
       <div className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Review</div>
           <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-[var(--app-text)]">
             {props.detail.sourceName}
@@ -61,7 +65,10 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <button type="button" onClick={() => setShowMetadata((current) => !current)} className="page-chip">
+            {showMetadata ? "Hide details" : "Show details"}
+          </button>
           <button type="button" onClick={props.onBack} className="page-chip">
             Back to workspace
           </button>
@@ -85,15 +92,6 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
       </div>
 
       <div className="mt-5 min-h-0 flex-1 overflow-auto pr-1">
-        <div className="grid gap-4 xl:grid-cols-2">
-          <DetailMeta label="Project" value={props.detail.projectName} />
-          <DetailMeta label="Source type" value={props.detail.sourceType} />
-          <DetailMeta label="MIME type" value={props.detail.mimeType ?? "-"} />
-          <DetailMeta label="Created" value={formatTimestamp(props.detail.createdAt)} />
-          <DetailMeta label="Updated" value={formatTimestamp(props.detail.updatedAt)} />
-          <DetailMeta label="Next attempt" value={formatTimestamp(props.detail.nextAttemptAt)} />
-        </div>
-
         {props.detail.errorMessage ? (
           <section className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/10 p-4">
             <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-rose-200">Error</div>
@@ -117,6 +115,20 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             value={props.detail.translatedText?.trim() || "Translation has not completed for this document yet."}
           />
         </div>
+
+        {showMetadata ? (
+          <section className="mt-4 rounded-2xl border border-[var(--app-border)] bg-white/3 p-4">
+            <div className="font-mono-ui text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">Metadata</div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              <DetailMeta label="Project" value={props.detail.projectName} />
+              <DetailMeta label="Source type" value={props.detail.sourceType} />
+              <DetailMeta label="MIME type" value={props.detail.mimeType ?? "-"} />
+              <DetailMeta label="Created" value={formatTimestamp(props.detail.createdAt)} />
+              <DetailMeta label="Updated" value={formatTimestamp(props.detail.updatedAt)} />
+              <DetailMeta label="Next attempt" value={formatTimestamp(props.detail.nextAttemptAt)} />
+            </div>
+          </section>
+        ) : null}
       </div>
     </section>
   );
