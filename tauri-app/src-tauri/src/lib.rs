@@ -35,6 +35,15 @@ struct DocumentRow {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DocumentListResponse {
+    documents: Vec<DocumentRow>,
+    page: i64,
+    page_size: i64,
+    total_count: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DocumentDetail {
     id: i64,
     project_name: String,
@@ -258,8 +267,36 @@ fn create_project(name: String) -> Result<ProjectSummary, String> {
 }
 
 #[tauri::command]
-fn list_documents(project_name: String) -> Result<Vec<DocumentRow>, String> {
+fn list_documents(
+    project_name: String,
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<DocumentListResponse, String> {
     let connection = open_database()?;
+    let requested_page_size = page_size.unwrap_or(15).max(1);
+    let requested_page = page.unwrap_or(1).max(1);
+
+    let total_count: i64 = connection
+        .query_row(
+            "
+            SELECT COUNT(*)
+            FROM documents
+            JOIN projects ON projects.id = documents.project_id
+            WHERE projects.name = ?1
+            ",
+            params![project_name],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Failed to count documents: {error}"))?;
+
+    let total_pages = if total_count == 0 {
+        1
+    } else {
+        (total_count + requested_page_size - 1) / requested_page_size
+    };
+    let normalized_page = requested_page.min(total_pages);
+    let offset = (normalized_page - 1) * requested_page_size;
+
     let mut statement = connection
         .prepare(
             "
@@ -278,12 +315,13 @@ fn list_documents(project_name: String) -> Result<Vec<DocumentRow>, String> {
             JOIN projects ON projects.id = documents.project_id
             WHERE projects.name = ?1
             ORDER BY documents.updated_at DESC, documents.id DESC
+            LIMIT ?2 OFFSET ?3
             ",
         )
         .map_err(|error| format!("Failed to query documents: {error}"))?;
 
     let rows = statement
-        .query_map(params![project_name], |row| {
+        .query_map(params![project_name, requested_page_size, offset], |row| {
             Ok(DocumentRow {
                 id: row.get(0)?,
                 source_name: row.get(1)?,
@@ -299,8 +337,16 @@ fn list_documents(project_name: String) -> Result<Vec<DocumentRow>, String> {
         })
         .map_err(|error| format!("Failed to map documents: {error}"))?;
 
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("Failed to read documents: {error}"))
+    let documents = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Failed to read documents: {error}"))?;
+
+    Ok(DocumentListResponse {
+        documents,
+        page: normalized_page,
+        page_size: requested_page_size,
+        total_count,
+    })
 }
 
 #[tauri::command]

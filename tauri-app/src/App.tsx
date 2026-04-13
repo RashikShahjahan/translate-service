@@ -26,6 +26,13 @@ type DocumentRow = {
   updatedAt: string;
 };
 
+type DocumentListResponse = {
+  documents: DocumentRow[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+};
+
 type DocumentDetail = {
   id: number;
   projectName: string;
@@ -45,6 +52,7 @@ type DocumentDetail = {
 };
 
 const POLL_INTERVAL_MS = 4000;
+const DOCUMENTS_PAGE_SIZE = 15;
 
 const STATUS_STYLES: Record<string, string> = {
   pending_ocr: "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200",
@@ -134,6 +142,8 @@ function StatCard(props: { label: string; value: number; accent: string }) {
 function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [documentsPage, setDocumentsPage] = useState(1);
+  const [documentsTotalCount, setDocumentsTotalCount] = useState(0);
   const [selectedProjectName, setSelectedProjectName] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
@@ -162,6 +172,7 @@ function App() {
         if (current && nextProjects.some((project) => project.name === current)) {
           return current;
         }
+        setDocumentsPage(1);
         return nextProjects[0]?.name ?? "";
       });
     } catch (error) {
@@ -173,9 +184,11 @@ function App() {
     }
   }
 
-  async function refreshDocuments(projectName: string, silent = false) {
+  async function refreshDocuments(projectName: string, page: number, silent = false) {
     if (!projectName) {
       setDocuments([]);
+      setDocumentsTotalCount(0);
+      setDocumentsPage(1);
       setSelectedDocumentId(null);
       setDetail(null);
       return;
@@ -186,13 +199,19 @@ function App() {
     }
 
     try {
-      const nextDocuments = await invoke<DocumentRow[]>("list_documents", { projectName });
-      setDocuments(nextDocuments);
+      const nextDocuments = await invoke<DocumentListResponse>("list_documents", {
+        projectName,
+        page,
+        pageSize: DOCUMENTS_PAGE_SIZE,
+      });
+      setDocuments(nextDocuments.documents);
+      setDocumentsTotalCount(nextDocuments.totalCount);
+      setDocumentsPage(nextDocuments.page);
       setSelectedDocumentId((current) => {
-        if (current && nextDocuments.some((document) => document.id === current)) {
+        if (current && nextDocuments.documents.some((document) => document.id === current)) {
           return current;
         }
-        return nextDocuments[0]?.id ?? null;
+        return nextDocuments.documents[0]?.id ?? null;
       });
     } catch (error) {
       setActionError(messageFromError(error));
@@ -238,18 +257,18 @@ function App() {
   }, []);
 
   useEffect(() => {
-    void refreshDocuments(selectedProjectName, false);
+    void refreshDocuments(selectedProjectName, documentsPage, false);
 
     if (!selectedProjectName) {
       return;
     }
 
     const interval = window.setInterval(() => {
-      void refreshDocuments(selectedProjectName, true);
+      void refreshDocuments(selectedProjectName, documentsPage, true);
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [selectedProjectName]);
+  }, [selectedProjectName, documentsPage]);
 
   useEffect(() => {
     void refreshDetail(selectedDocumentId, false);
@@ -276,6 +295,7 @@ function App() {
         name: projectNameInput,
       });
       setProjectNameInput("");
+      setDocumentsPage(1);
       setSelectedProjectName(createdProject.name);
       await refreshProjects(false);
       setSelectedProjectName(createdProject.name);
@@ -312,7 +332,7 @@ function App() {
       });
 
       await refreshProjects(false);
-      await refreshDocuments(selectedProjectName, false);
+      await refreshDocuments(selectedProjectName, documentsPage, false);
       setActionMessage(
         directory
           ? `Imported folder into ${selectedProjectName}.`
@@ -340,7 +360,7 @@ function App() {
         projectName: selectedProjectName,
       });
       await refreshProjects(false);
-      await refreshDocuments(selectedProjectName, false);
+      await refreshDocuments(selectedProjectName, documentsPage, false);
 
       if (outputs.length === 0) {
         setActionMessage(`Export finished for ${selectedProjectName}.`);
@@ -358,9 +378,13 @@ function App() {
     setActionError("");
     setActionMessage("");
     await refreshProjects(false);
-    await refreshDocuments(selectedProjectName, false);
+    await refreshDocuments(selectedProjectName, documentsPage, false);
     await refreshDetail(selectedDocumentId, false);
   }
+
+  const documentsTotalPages = Math.max(1, Math.ceil(documentsTotalCount / DOCUMENTS_PAGE_SIZE));
+  const documentsRangeStart = documentsTotalCount === 0 ? 0 : (documentsPage - 1) * DOCUMENTS_PAGE_SIZE + 1;
+  const documentsRangeEnd = documentsTotalCount === 0 ? 0 : Math.min(documentsTotalCount, documentsPage * DOCUMENTS_PAGE_SIZE);
 
   return (
     <main className="min-h-screen px-4 py-5 text-stone-800 sm:px-6 sm:py-6">
@@ -389,9 +413,9 @@ function App() {
             <button
               type="submit"
               disabled={creatingProject}
-              className="w-full rounded-2xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {creatingProject ? "Creating..." : "Start project"}
+              {creatingProject ? "Creating..." : "Create project"}
             </button>
           </form>
 
@@ -417,6 +441,7 @@ function App() {
                   key={project.id}
                   type="button"
                   onClick={() => {
+                    setDocumentsPage(1);
                     setSelectedProjectName(project.name);
                   }}
                     className={`w-full rounded-[24px] border px-4 py-3.5 text-left transition ${
@@ -469,37 +494,37 @@ function App() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void handleImport(false)}
                 disabled={!selectedProjectName || importing}
-                className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {importing ? "Importing..." : "Add files"}
+                {importing ? "Importing..." : "Import files"}
               </button>
               <button
                 type="button"
                 onClick={() => void handleImport(true)}
                 disabled={!selectedProjectName || importing}
-                className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Add folder
+                Import folder
               </button>
               <button
                 type="button"
                 onClick={() => void handleRefresh()}
-                className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
               >
-                Refresh view
+                Refresh
               </button>
               <button
                 type="button"
                 onClick={() => void handleExport()}
                 disabled={!selectedProjectName || exporting}
-                className="rounded-2xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {exporting ? "Exporting..." : "Export ready files"}
+                {exporting ? "Exporting..." : "Export files"}
               </button>
             </div>
           </div>
@@ -551,7 +576,14 @@ function App() {
                     : "Select a project to browse its files."}
                 </p>
               </div>
-              {loadingDocuments ? <span className="text-xs text-stone-400">Refreshing</span> : null}
+              <div className="text-right">
+                {selectedProjectName ? (
+                  <div className="text-xs text-stone-500">
+                    Showing {documentsRangeStart}-{documentsRangeEnd} of {documentsTotalCount}
+                  </div>
+                ) : null}
+                {loadingDocuments ? <span className="text-xs text-stone-400">Refreshing</span> : null}
+              </div>
             </div>
 
             {!selectedProjectName ? (
@@ -625,6 +657,29 @@ function App() {
                     })}
                   </tbody>
                 </table>
+                <div className="flex flex-col gap-3 border-t border-stone-200/80 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-stone-500">
+                    Page {documentsPage} of {documentsTotalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDocumentsPage((current) => Math.max(1, current - 1))}
+                      disabled={documentsPage <= 1 || loadingDocuments}
+                      className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDocumentsPage((current) => Math.min(documentsTotalPages, current + 1))}
+                      disabled={documentsPage >= documentsTotalPages || loadingDocuments}
+                      className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
