@@ -1,4 +1,3 @@
-import { formatTimestamp } from "./app-shared";
 import type { ProjectSummary } from "../types";
 
 type ProjectSidebarProps = {
@@ -50,9 +49,6 @@ function ProjectSidebar(props: ProjectSidebarProps) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[var(--app-text)]">{project.name}</div>
-                  <div className="mt-1 text-xs text-[var(--app-muted)]">
-                    Created {formatTimestamp(project.createdAt)}
-                  </div>
                 </div>
                 {project.erroredDocuments > 0 ? (
                   <span className="rounded-full border border-rose-400/20 bg-rose-400/12 px-2.5 py-1 text-[11px] font-semibold text-rose-200">
