@@ -38,7 +38,9 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
+    created_at: Mapped[str] = mapped_column(
+        String, nullable=False, default=utc_now_string
+    )
     documents: Mapped[list["Document"]] = relationship(back_populates="project")
 
 
@@ -47,7 +49,9 @@ class Document(Base):
     __table_args__ = (UniqueConstraint("project_id", "source_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE")
+    )
     source_name: Mapped[str] = mapped_column(String, nullable=False)
     source_type: Mapped[str] = mapped_column(String, nullable=False)
     source_bytes: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
@@ -60,8 +64,12 @@ class Document(Base):
     retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
     next_attempt_at: Mapped[str | None] = mapped_column(String, nullable=True)
     leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
-    updated_at: Mapped[str] = mapped_column(String, nullable=False, default=utc_now_string)
+    created_at: Mapped[str] = mapped_column(
+        String, nullable=False, default=utc_now_string
+    )
+    updated_at: Mapped[str] = mapped_column(
+        String, nullable=False, default=utc_now_string
+    )
     project: Mapped[Project] = relationship(back_populates="documents")
 
 
@@ -71,6 +79,7 @@ engine = create_engine(DATABASE_URL)
 
 def ensure_db() -> None:
     Base.metadata.create_all(engine)
+
 
 def get_session() -> Session:
     ensure_db()
@@ -142,7 +151,9 @@ def upsert_document(
     source_text: str | None,
     mime_type: str | None,
 ) -> None:
-    status = STATUS_PENDING_OCR if source_type == "image" else STATUS_PENDING_TRANSLATION
+    status = (
+        STATUS_PENDING_OCR if source_type == "image" else STATUS_PENDING_TRANSLATION
+    )
     now = utc_now_string()
 
     with get_session() as session:
@@ -206,6 +217,44 @@ def get_tasks() -> list[dict]:
             .order_by(Document.created_at.asc(), Document.id.asc())
         ).mappings()
         return [dict(row) for row in rows]
+
+
+def retry_document(document_id: int) -> dict | None:
+    with get_session() as session:
+        document = session.get(Document, document_id)
+        if document is None:
+            return None
+
+        if document.status == STATUS_COMPLETED:
+            raise ValueError(f"Document {document_id} is already completed")
+
+        if document.status in {STATUS_PROCESSING_OCR, STATUS_PROCESSING_TRANSLATION}:
+            raise ValueError(f"Document {document_id} is currently processing")
+
+        if not document.error_message:
+            raise ValueError(f"Document {document_id} is not in a failed state")
+
+        if document.status == STATUS_PENDING_OCR:
+            next_status = STATUS_PENDING_OCR
+        elif document.status == STATUS_PENDING_TRANSLATION:
+            next_status = STATUS_PENDING_TRANSLATION
+        elif document.source_type == "image" and not document.ocr_text:
+            next_status = STATUS_PENDING_OCR
+        else:
+            next_status = STATUS_PENDING_TRANSLATION
+
+        document.status = next_status
+        document.error_message = None
+        document.next_attempt_at = None
+        document.leased_at = None
+        document.updated_at = utc_now_string()
+        session.commit()
+        return {
+            "id": document.id,
+            "status": document.status,
+            "retry_count": document.retry_count,
+            "updated_at": document.updated_at,
+        }
 
 
 def _lease_documents(
@@ -320,7 +369,9 @@ def complete_translation(document_id: int, translated_text: str) -> None:
         session.commit()
 
 
-def requeue_document(document_id: int, error_message: str, backoff_seconds: float) -> None:
+def requeue_document(
+    document_id: int, error_message: str, backoff_seconds: float
+) -> None:
     with get_session() as session:
         document = session.get(Document, document_id)
         if document is None:
@@ -333,8 +384,11 @@ def requeue_document(document_id: int, error_message: str, backoff_seconds: floa
         document.error_message = error_message
         document.retry_count += 1
         document.next_attempt_at = (
-            datetime.now(UTC) + timedelta(seconds=backoff_seconds)
-        ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            (datetime.now(UTC) + timedelta(seconds=backoff_seconds))
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
         document.leased_at = None
         document.updated_at = utc_now_string()
         session.commit()
