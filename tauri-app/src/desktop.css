@@ -1,37 +1,27 @@
-.desktop-command-surface {
-  border: 1px solid var(--app-border);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(9, 14, 27, 0.9));
-  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.28);
+.app-shell {
+  background:
+    radial-gradient(circle at top left, rgba(103, 183, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, #07111f 0%, #091423 100%);
 }
 
-.desktop-command-row {
-  min-height: 44px;
-}
-
-.desktop-command-groups {
-  flex-shrink: 0;
+.app-layout {
+  grid-template-columns: minmax(16rem, 18rem) minmax(0, 1fr);
 }
 
 .desktop-create-panel {
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.desktop-create-help {
-  max-width: 24rem;
-}
-
-.desktop-status-row {
-  border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .command-button,
-.command-icon-button {
+.panel-inline-action,
+.page-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
+  min-height: 2.5rem;
+  padding: 0 1rem;
   border-radius: 999px;
   border: 1px solid var(--app-border);
   background: rgba(255, 255, 255, 0.055);
@@ -39,41 +29,52 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1;
-  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
-}
-
-.command-button {
-  min-height: 2.5rem;
-  padding: 0 1rem;
-}
-
-.command-icon-button {
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
 .command-button:hover,
-.command-icon-button:hover {
+.panel-inline-action:hover,
+.page-chip:hover {
   border-color: var(--app-border-strong);
   background: rgba(255, 255, 255, 0.09);
 }
 
 .command-button:disabled,
-.command-icon-button:disabled {
+.panel-inline-action:disabled,
+.page-chip:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
+.command-button-primary,
+.panel-inline-action {
+  border-color: rgba(103, 183, 255, 0.3);
+}
+
 .command-button-primary {
-  border-color: rgba(103, 183, 255, 0.42);
   background: linear-gradient(135deg, #67b7ff, #468cf3);
   color: #04101d;
 }
 
 .command-button-primary:hover {
-  border-color: rgba(103, 183, 255, 0.42);
   background: linear-gradient(135deg, #7cc2ff, #4f92f3);
+}
+
+.panel-inline-action-secondary {
+  border-color: var(--app-border);
+}
+
+.page-chip {
+  min-height: 2rem;
+  padding: 0 0.9rem;
+  font-size: 0.8125rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.page-chip-active {
+  border-color: rgba(103, 183, 255, 0.32);
+  background: rgba(103, 183, 255, 0.14);
+  color: #dff1ff;
 }
 
 .command-button-icon {
@@ -100,7 +101,6 @@
   background: rgba(255, 255, 255, 0.045);
   color: var(--app-text);
   font-size: 0.8125rem;
-  white-space: nowrap;
 }
 
 .status-pill-error {
@@ -121,16 +121,13 @@
   backdrop-filter: blur(14px);
 }
 
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
-  .desktop-command-groups {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .desktop-create-help {
-    max-width: none;
-  }
-
   .status-pill {
     white-space: normal;
   }

@@ -6,15 +6,16 @@ type ProjectSidebarProps = {
   selectedProjectName: string;
   loadingProjects: boolean;
   onSelectProject: (name: string) => void;
+  onCreateProject: () => void;
 };
 
 function ProjectSidebar(props: ProjectSidebarProps) {
   return (
-    <aside className="panel-surface flex h-full min-h-0 flex-col rounded-2xl p-3">
+    <aside className="panel-surface flex h-full min-h-0 flex-col rounded-[24px] p-3">
       <div className="space-y-1 border-b border-[var(--app-border)] pb-3">
         <p className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">Projects</p>
-        <h2 className="text-base font-semibold tracking-tight text-[var(--app-text)]">Workspace index</h2>
-        <p className="text-sm text-[var(--app-muted)]">Recent queues, running work, and issue counts.</p>
+        <h2 className="text-base font-semibold tracking-tight text-[var(--app-text)]">Sidebar</h2>
+        <p className="text-sm text-[var(--app-muted)]">Select a project and stay in its queue.</p>
       </div>
 
       <div className="mt-3 flex items-center justify-between">
@@ -24,8 +25,11 @@ function ProjectSidebar(props: ProjectSidebarProps) {
 
       <div className="mt-3 min-h-0 space-y-2 overflow-auto pr-1">
         {props.projects.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[var(--app-border-strong)] bg-white/4 p-4 text-sm text-[var(--app-muted)]">
-            No projects yet. Create one to get started.
+          <div className="rounded-xl border border-dashed border-[var(--app-border-strong)] bg-white/4 p-4 text-sm text-[var(--app-muted)]">
+            <div>No projects yet. Create one to start a queue and import files.</div>
+            <button type="button" onClick={props.onCreateProject} className="panel-inline-action mt-4">
+              Create project
+            </button>
           </div>
         ) : null}
 

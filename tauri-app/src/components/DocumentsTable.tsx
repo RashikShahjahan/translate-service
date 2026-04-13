@@ -14,6 +14,9 @@ type DocumentsTableProps = {
   onSelectDocument: (documentId: number) => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
+  onImportFiles: () => void;
+  onImportFolder: () => void;
+  onCreateProject: () => void;
 };
 
 function DocumentsTable(props: DocumentsTableProps) {
@@ -24,7 +27,7 @@ function DocumentsTable(props: DocumentsTableProps) {
           <h3 className="text-base font-semibold text-[var(--app-text)]">Documents</h3>
           <p className="mt-1 text-sm text-[var(--app-muted)]">
             {props.selectedProjectName
-              ? "See where each file is in the workflow and open one for more detail."
+              ? "Open any row to move into the review page."
               : "Select a project to browse its files."}
           </p>
         </div>
@@ -40,11 +43,23 @@ function DocumentsTable(props: DocumentsTableProps) {
 
       {!props.selectedProjectName ? (
         <div className="px-4 py-12 text-center text-sm text-[var(--app-muted)]">
-          Create a project to start adding files.
+          <div>Create a project to start adding files.</div>
+          <button type="button" onClick={props.onCreateProject} className="panel-inline-action mt-4">
+            Create project
+          </button>
         </div>
       ) : props.documents.length === 0 ? (
         <div className="px-4 py-12 text-center text-sm text-[var(--app-muted)]">
-          No files in this project yet.
+          <div>No files in this project yet.</div>
+          <div className="mt-2">Import files or a folder to start the queue.</div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <button type="button" onClick={props.onImportFiles} className="panel-inline-action">
+              Import files
+            </button>
+            <button type="button" onClick={props.onImportFolder} className="panel-inline-action panel-inline-action-secondary">
+              Import folder
+            </button>
+          </div>
         </div>
       ) : (
         <div className="min-h-0 overflow-auto">
