@@ -55,7 +55,12 @@ function ProjectSidebar(props: ProjectSidebarProps) {
                }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="truncate">{project.name}</div>
+                <div className="min-w-0">
+                  <div className="truncate">{project.name}</div>
+                  <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--app-muted)]">
+                    {project.sourceLanguage} to {project.targetLanguage}
+                  </div>
+                </div>
                 {project.erroredDocuments > 0 ? (
                   <span className="shrink-0 rounded-full bg-rose-400/12 px-2.5 py-1 text-[11px] font-semibold text-rose-200">
                     {project.erroredDocuments}

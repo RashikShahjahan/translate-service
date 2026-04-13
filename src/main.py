@@ -5,6 +5,7 @@ from utils.storage import get_completed_translations
 from utils.storage import get_documents
 from utils.storage import get_projects
 from utils.storage import get_tasks
+from utils.storage import retry_document
 from utils.storage import upsert_document, upsert_project
 from utils.docx import write_document_docx
 from utils.file_types import detect_mime_type, detect_source_type
@@ -65,7 +66,6 @@ def add_tasks(project_name: str, input_paths: str | list[str]) -> int:
     queued_count = 0
     skipped_count = 0
 
-
     for raw_input_path in paths:
         input_path = Path(raw_input_path)
         for input_file, source_name in iter_input_files(input_path):
@@ -83,13 +83,14 @@ def add_tasks(project_name: str, input_paths: str | list[str]) -> int:
     return queued_count
 
 
-
 def document_output_path(output_dir: Path, source_name: str) -> Path:
     source_path = Path(source_name)
     return output_dir / source_path.with_suffix(".docx")
 
 
-def publish_project_docx(project_name: str, output_path: str | None = None) -> list[Path]:
+def publish_project_docx(
+    project_name: str, output_path: str | None = None
+) -> list[Path]:
     documents = get_completed_translations(project_name)
     if not documents:
         raise ValueError(
@@ -113,9 +114,7 @@ def publish_project_docx(project_name: str, output_path: str | None = None) -> l
 
 
 def build_parser() -> ArgumentParser:
-    parser = ArgumentParser(
-        description="Manage translation projects and queued tasks."
-    )
+    parser = ArgumentParser(description="Manage translation projects and queued tasks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     upsert_project_parser = subparsers.add_parser(
@@ -132,6 +131,16 @@ def build_parser() -> ArgumentParser:
     subparsers.add_parser(
         "get-tasks",
         help="Print queued OCR and translation tasks.",
+    )
+
+    retry_task_parser = subparsers.add_parser(
+        "retry-task",
+        help="Retry a failed OCR or translation task immediately.",
+    )
+    retry_task_parser.add_argument(
+        "document_id",
+        type=int,
+        help="Document id to requeue.",
     )
 
     subparsers.add_parser(
@@ -179,6 +188,13 @@ def main() -> int:
             tasks = get_tasks()
             for task in tasks:
                 print(task)
+            return 0
+
+        if args.command == "retry-task":
+            retried = retry_document(args.document_id)
+            if retried is None:
+                raise ValueError(f"Document not found: {args.document_id}")
+            print(retried)
             return 0
 
         if args.command == "list-projects":

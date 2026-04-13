@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -18,6 +19,8 @@ const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
 const WORKER_LABEL: &str = "local.translate-service.worker";
 const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
 const DEFAULT_WORKER_ACTIVE_END_TIME: &str = "08:00";
+const DEFAULT_SOURCE_LANGUAGE: &str = "bn";
+const DEFAULT_TARGET_LANGUAGE: &str = "en";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +28,8 @@ struct ProjectSummary {
     id: i64,
     name: String,
     created_at: String,
+    source_language: String,
+    target_language: String,
     total_documents: i64,
     queued_documents: i64,
     processing_documents: i64,
@@ -85,6 +90,63 @@ struct WorkerScheduleStatus {
     start_time: String,
     end_time: String,
     plist_path: String,
+}
+
+fn default_language_code(env_name: &str, fallback: &str) -> String {
+    env::var(env_name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .map(|value| {
+            if value.len() == 2 {
+                value.to_ascii_lowercase()
+            } else {
+                value
+            }
+        })
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| fallback.to_string())
+}
+
+fn validate_language_code(value: &str, label: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{label} is required"));
+    }
+
+    if trimmed.len() == 2 {
+        return Ok(trimmed.to_ascii_lowercase());
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn ensure_column_exists(
+    connection: &Connection,
+    table_name: &str,
+    column_name: &str,
+    column_definition: &str,
+) -> Result<(), String> {
+    let mut statement = connection
+        .prepare(&format!("PRAGMA table_info({table_name})"))
+        .map_err(|error| format!("Failed to inspect {table_name} schema: {error}"))?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|error| format!("Failed to inspect {table_name} columns: {error}"))?;
+
+    for column in columns {
+        if column.map_err(|error| format!("Failed to read {table_name} columns: {error}"))? == column_name {
+            return Ok(());
+        }
+    }
+
+    connection
+        .execute(
+            &format!("ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"),
+            [],
+        )
+        .map_err(|error| format!("Failed to add {column_name} column to {table_name}: {error}"))?;
+
+    Ok(())
 }
 
 fn repo_root() -> Result<PathBuf, String> {
@@ -223,13 +285,18 @@ fn worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
 }
 
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
+    let default_source_language = default_language_code("SOURCE_LANG_CODE", DEFAULT_SOURCE_LANGUAGE);
+    let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
+
     connection
         .execute_batch(
             "
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                source_language TEXT NOT NULL DEFAULT 'bn',
+                target_language TEXT NOT NULL DEFAULT 'en'
             );
 
             CREATE TABLE IF NOT EXISTS documents (
@@ -253,7 +320,43 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
             );
             ",
         )
-        .map_err(|error| format!("Failed to ensure schema: {error}"))
+        .map_err(|error| format!("Failed to ensure schema: {error}"))?;
+
+    ensure_column_exists(
+        connection,
+        "projects",
+        "source_language",
+        "TEXT NOT NULL DEFAULT 'bn'",
+    )?;
+    ensure_column_exists(
+        connection,
+        "projects",
+        "target_language",
+        "TEXT NOT NULL DEFAULT 'en'",
+    )?;
+
+    connection
+        .execute(
+            "
+            UPDATE projects
+            SET source_language = ?1
+            WHERE source_language IS NULL OR TRIM(source_language) = ''
+            ",
+            params![default_source_language],
+        )
+        .map_err(|error| format!("Failed to backfill source language: {error}"))?;
+    connection
+        .execute(
+            "
+            UPDATE projects
+            SET target_language = ?1
+            WHERE target_language IS NULL OR TRIM(target_language) = ''
+            ",
+            params![default_target_language],
+        )
+        .map_err(|error| format!("Failed to backfill target language: {error}"))?;
+
+    Ok(())
 }
 
 fn run_python_cli<I, S>(args: I) -> Result<String, String>
@@ -288,6 +391,8 @@ fn project_summary_by_name(connection: &Connection, name: &str) -> Result<Projec
                 projects.id,
                 projects.name,
                 projects.created_at,
+                projects.source_language,
+                projects.target_language,
                 COUNT(documents.id) AS total_documents,
                 COALESCE(SUM(CASE
                     WHEN documents.status IN ('pending_ocr', 'pending_translation') THEN 1
@@ -308,7 +413,7 @@ fn project_summary_by_name(connection: &Connection, name: &str) -> Result<Projec
             FROM projects
             LEFT JOIN documents ON documents.project_id = projects.id
             WHERE projects.name = ?1
-            GROUP BY projects.id, projects.name, projects.created_at
+            GROUP BY projects.id, projects.name, projects.created_at, projects.source_language, projects.target_language
             LIMIT 1
             ",
         )
@@ -320,24 +425,29 @@ fn project_summary_by_name(connection: &Connection, name: &str) -> Result<Projec
                 id: row.get(0)?,
                 name: row.get(1)?,
                 created_at: row.get(2)?,
-                total_documents: row.get(3)?,
-                queued_documents: row.get(4)?,
-                processing_documents: row.get(5)?,
-                completed_documents: row.get(6)?,
-                errored_documents: row.get(7)?,
+                source_language: row.get(3)?,
+                target_language: row.get(4)?,
+                total_documents: row.get(5)?,
+                queued_documents: row.get(6)?,
+                processing_documents: row.get(7)?,
+                completed_documents: row.get(8)?,
+                errored_documents: row.get(9)?,
             })
         })
         .map_err(|error| format!("Failed to read project: {error}"))
 }
 
 fn create_project_with_name(connection: &Connection, name: &str) -> Result<ProjectSummary, String> {
+    let default_source_language = default_language_code("SOURCE_LANG_CODE", DEFAULT_SOURCE_LANGUAGE);
+    let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
+
     connection
         .execute(
             "
-            INSERT OR IGNORE INTO projects (name, created_at)
-            VALUES (?1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            INSERT OR IGNORE INTO projects (name, created_at, source_language, target_language)
+            VALUES (?1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?2, ?3)
             ",
-            params![name],
+            params![name, default_source_language, default_target_language],
         )
         .map_err(|error| format!("Failed to create project: {error}"))?;
 
@@ -477,6 +587,8 @@ fn list_projects() -> Result<Vec<ProjectSummary>, String> {
                 projects.id,
                 projects.name,
                 projects.created_at,
+                projects.source_language,
+                projects.target_language,
                 COUNT(documents.id) AS total_documents,
                 COALESCE(SUM(CASE
                     WHEN documents.status IN ('pending_ocr', 'pending_translation') THEN 1
@@ -496,7 +608,7 @@ fn list_projects() -> Result<Vec<ProjectSummary>, String> {
                 END), 0) AS errored_documents
             FROM projects
             LEFT JOIN documents ON documents.project_id = projects.id
-            GROUP BY projects.id, projects.name, projects.created_at
+            GROUP BY projects.id, projects.name, projects.created_at, projects.source_language, projects.target_language
             ORDER BY projects.created_at DESC, projects.id DESC
             ",
         )
@@ -508,11 +620,13 @@ fn list_projects() -> Result<Vec<ProjectSummary>, String> {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 created_at: row.get(2)?,
-                total_documents: row.get(3)?,
-                queued_documents: row.get(4)?,
-                processing_documents: row.get(5)?,
-                completed_documents: row.get(6)?,
-                errored_documents: row.get(7)?,
+                source_language: row.get(3)?,
+                target_language: row.get(4)?,
+                total_documents: row.get(5)?,
+                queued_documents: row.get(6)?,
+                processing_documents: row.get(7)?,
+                completed_documents: row.get(8)?,
+                errored_documents: row.get(9)?,
             })
         })
         .map_err(|error| format!("Failed to map projects: {error}"))?;
@@ -537,6 +651,34 @@ fn create_untitled_project() -> Result<ProjectSummary, String> {
     let connection = open_database()?;
     let project_name = next_untitled_project_name(&connection)?;
     create_project_with_name(&connection, &project_name)
+}
+
+#[tauri::command]
+fn update_project_languages(
+    project_name: String,
+    source_language: String,
+    target_language: String,
+) -> Result<ProjectSummary, String> {
+    let connection = open_database()?;
+    let normalized_source_language = validate_language_code(&source_language, "Source language")?;
+    let normalized_target_language = validate_language_code(&target_language, "Target language")?;
+
+    let updated_rows = connection
+        .execute(
+            "
+            UPDATE projects
+            SET source_language = ?1, target_language = ?2
+            WHERE name = ?3
+            ",
+            params![normalized_source_language, normalized_target_language, project_name],
+        )
+        .map_err(|error| format!("Failed to update project languages: {error}"))?;
+
+    if updated_rows == 0 {
+        return Err("Project not found".to_string());
+    }
+
+    project_summary_by_name(&connection, &project_name)
 }
 
 #[tauri::command]
@@ -822,6 +964,7 @@ pub fn run() {
             list_projects,
             create_project,
             create_untitled_project,
+            update_project_languages,
             list_documents,
             get_document_detail,
             add_project_inputs,

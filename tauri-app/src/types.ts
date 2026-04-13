@@ -2,6 +2,8 @@ export type ProjectSummary = {
   id: number;
   name: string;
   createdAt: string;
+  sourceLanguage: string;
+  targetLanguage: string;
   totalDocuments: number;
   queuedDocuments: number;
   processingDocuments: number;

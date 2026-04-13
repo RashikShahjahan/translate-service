@@ -32,6 +32,7 @@ Use `uv run ...` if you are working from the project environment.
 ## Inspect queued and stored data
 
 - `uv run python src/main.py get-tasks`: Print the currently queued OCR and translation tasks, including `retry_count` and `next_attempt_at`.
+- `uv run python src/main.py retry-task <document_id>`: Clear the error/backoff for a failed task and make it eligible for immediate retry.
 - `uv run python src/main.py list-projects`: Print all stored project names.
 - `uv run python src/main.py list-documents <project_name>`: Print stored documents for a project, including status and timestamps.
 - `uv run python src/main.py export <project_name> [output_dir]`: Write one `.docx` file per completed translated document. Defaults to `output/<project_name>/`.

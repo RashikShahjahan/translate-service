@@ -195,12 +195,15 @@ function App() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [projectNameInput, setProjectNameInput] = useState("");
+  const [projectSourceLanguageInput, setProjectSourceLanguageInput] = useState("");
+  const [projectTargetLanguageInput, setProjectTargetLanguageInput] = useState("");
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [savingProjectLanguages, setSavingProjectLanguages] = useState(false);
   const [retryingDocumentId, setRetryingDocumentId] = useState<number | null>(null);
   const [workerSchedule, setWorkerSchedule] = useState<WorkerScheduleStatus | null>(null);
   const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
@@ -341,6 +344,36 @@ function App() {
       setActionError(messageFromError(error));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function saveProjectLanguages() {
+    if (!selectedProjectName) {
+      setActionError("Choose a project before updating languages.");
+      return;
+    }
+
+    setSavingProjectLanguages(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const updatedProject = await invoke<ProjectSummary>("update_project_languages", {
+        projectName: selectedProjectName,
+        sourceLanguage: projectSourceLanguageInput,
+        targetLanguage: projectTargetLanguageInput,
+      });
+      await refreshProjects(false);
+      setSelectedProjectName(updatedProject.name);
+      setProjectSourceLanguageInput(updatedProject.sourceLanguage);
+      setProjectTargetLanguageInput(updatedProject.targetLanguage);
+      setActionMessage(
+        `Updated ${updatedProject.name} to ${updatedProject.sourceLanguage} -> ${updatedProject.targetLanguage}.`,
+      );
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setSavingProjectLanguages(false);
     }
   }
 
@@ -562,6 +595,11 @@ function App() {
   }, [selectedDocumentId]);
 
   useEffect(() => {
+    setProjectSourceLanguageInput(selectedProject?.sourceLanguage ?? "");
+    setProjectTargetLanguageInput(selectedProject?.targetLanguage ?? "");
+  }, [selectedProject?.name, selectedProject?.sourceLanguage, selectedProject?.targetLanguage]);
+
+  useEffect(() => {
     window.localStorage.setItem(STORAGE_KEYS.selectedProjectName, selectedProjectName);
   }, [selectedProjectName]);
 
@@ -763,6 +801,8 @@ function App() {
                 <WorkspacePanel
                   selectedProjectName={selectedProjectName}
                   selectedProject={selectedProject}
+                  projectSourceLanguageInput={projectSourceLanguageInput}
+                  projectTargetLanguageInput={projectTargetLanguageInput}
                   documents={documents}
                   selectedDocumentId={selectedDocumentId}
                   documentsRangeStart={documentsRangeStart}
@@ -772,6 +812,7 @@ function App() {
                   documentsTotalPages={documentsTotalPages}
                   loadingDocuments={loadingDocuments}
                   importing={importing}
+                  savingProjectLanguages={savingProjectLanguages}
                   onSelectDocument={(documentId) => {
                     setSelectedDocumentId(documentId);
                     setActivePage("review");
@@ -781,6 +822,9 @@ function App() {
                   onImportFiles={() => void importProjectInputs(false)}
                   onImportFolder={() => void importProjectInputs(true)}
                   onCreateProject={() => setShowCreatePanel(true)}
+                  onProjectSourceLanguageChange={setProjectSourceLanguageInput}
+                  onProjectTargetLanguageChange={setProjectTargetLanguageInput}
+                  onSaveProjectLanguages={() => void saveProjectLanguages()}
                   onRetryDocument={(documentId) => void retryFailedDocument(documentId)}
                   retryingDocumentId={retryingDocumentId}
                 />
