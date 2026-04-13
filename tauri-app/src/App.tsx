@@ -692,15 +692,6 @@ function App() {
                     onClick={() => setSidebarVisible((current) => !current)}
                   />
                   <CommandButton
-                    icon={<PlusIcon />}
-                    label="New Project"
-                    variant="primary"
-                    onClick={() => {
-                      setShowCreatePanel((current) => !current);
-                      setActivePage("workspace");
-                    }}
-                  />
-                  <CommandButton
                     icon={<FileIcon />}
                     label={importing ? "Importing..." : "Import Files"}
                     onClick={() => void importProjectInputs(false)}
