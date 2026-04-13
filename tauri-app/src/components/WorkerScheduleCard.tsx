@@ -1,5 +1,8 @@
 import type { WorkerScheduleStatus } from "../types";
 
+const HOURS = Array.from({ length: 24 }, (_, index) => index.toString().padStart(2, "0"));
+const MINUTES = Array.from({ length: 60 }, (_, index) => index.toString().padStart(2, "0"));
+
 type WorkerScheduleCardProps = {
   workerSchedule: WorkerScheduleStatus | null;
   scheduleStartTime: string;
@@ -12,6 +15,56 @@ type WorkerScheduleCardProps = {
   onSaveWorkerSchedule: () => void;
   onRemoveWorkerSchedule: () => void;
 };
+
+function TimeSelect(props: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [rawHour = "00", rawMinute = "00"] = props.value.split(":");
+  const hour = HOURS.includes(rawHour) ? rawHour : "00";
+  const minute = MINUTES.includes(rawMinute) ? rawMinute : "00";
+
+  function updateTime(nextHour: string, nextMinute: string) {
+    props.onChange(`${nextHour}:${nextMinute}`);
+  }
+
+  return (
+    <label className="block text-xs font-medium text-[var(--app-muted)]">
+      {props.label}
+      <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+        <select
+          aria-label={`${props.label} hour`}
+          value={hour}
+          disabled={props.disabled}
+          onChange={(event) => updateTime(event.currentTarget.value, minute)}
+          className="w-full appearance-none rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-sm text-[var(--app-text)] outline-none transition focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {HOURS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-[var(--app-muted)]">:</span>
+        <select
+          aria-label={`${props.label} minute`}
+          value={minute}
+          disabled={props.disabled}
+          onChange={(event) => updateTime(hour, event.currentTarget.value)}
+          className="w-full appearance-none rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-sm text-[var(--app-text)] outline-none transition focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {MINUTES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
+    </label>
+  );
+}
 
 function WorkerScheduleCard(props: WorkerScheduleCardProps) {
   const disabled =
@@ -63,24 +116,18 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
       {props.workerSchedule?.supported ? (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs font-medium text-[var(--app-muted)]">
-              Start time
-              <input
-                type="time"
-                value={props.scheduleStartTime}
-                onChange={(event) => props.onScheduleStartTimeChange(event.currentTarget.value)}
-                className="mt-1.5 w-full rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-sm text-[var(--app-text)] outline-none transition focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
-              />
-            </label>
-            <label className="block text-xs font-medium text-[var(--app-muted)]">
-              End time
-              <input
-                type="time"
-                value={props.scheduleEndTime}
-                onChange={(event) => props.onScheduleEndTimeChange(event.currentTarget.value)}
-                className="mt-1.5 w-full rounded-lg border border-[var(--app-border)] bg-white/6 px-4 py-3 text-sm text-[var(--app-text)] outline-none transition focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10"
-              />
-            </label>
+            <TimeSelect
+              label="Start time"
+              value={props.scheduleStartTime}
+              disabled={disabled}
+              onChange={props.onScheduleStartTimeChange}
+            />
+            <TimeSelect
+              label="End time"
+              value={props.scheduleEndTime}
+              disabled={disabled}
+              onChange={props.onScheduleEndTimeChange}
+            />
           </div>
 
           <div className="flex flex-wrap gap-2 lg:justify-end">

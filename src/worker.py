@@ -1,5 +1,6 @@
 from os import getenv, name
 from time import sleep, monotonic
+from collections import defaultdict
 
 from dotenv import load_dotenv
 from utils.storage import (
@@ -19,9 +20,7 @@ logger = get_logger(__name__)
 IDLE_SLEEP_SECONDS = float(getenv("IDLE_SLEEP_SECONDS", "60"))
 TRANSLATION_BATCH_SIZE = int(getenv("TRANSLATION_BATCH_SIZE", "4"))
 LEASE_TIMEOUT_SECONDS = float(getenv("LEASE_TIMEOUT_SECONDS", "900"))
-TRANSLATION_IDLE_UNLOAD_SECONDS = float(
-    getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15")
-)
+TRANSLATION_IDLE_UNLOAD_SECONDS = float(getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15"))
 RETRY_BACKOFF_BASE_SECONDS = float(getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
 RETRY_BACKOFF_MAX_SECONDS = float(getenv("RETRY_BACKOFF_MAX_SECONDS", "300"))
 
@@ -48,10 +47,33 @@ def start_translation(translation_batch_size: int):
     try:
         from utils.translation import translate_batch
 
-        results = translate_batch(input_texts)
-        for leased, translated_text in zip(leased_items, results):
-            complete_translation(int(leased["id"]), translated_text.strip())
-            logger.info("Completed translation for document %s", leased["id"])
+        groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        completed_translations: list[tuple[int, str]] = []
+        for leased in leased_items:
+            groups[
+                (
+                    str(leased["source_language"]).strip(),
+                    str(leased["target_language"]).strip(),
+                )
+            ].append(leased)
+
+        for (source_language, target_language), group_items in groups.items():
+            group_input_texts = [
+                str(item["input_text"]).strip() for item in group_items
+            ]
+            results = translate_batch(
+                group_input_texts,
+                source_lang_code=source_language,
+                target_lang_code=target_language,
+            )
+            for leased, translated_text in zip(group_items, results):
+                completed_translations.append(
+                    (int(leased["id"]), translated_text.strip())
+                )
+
+        for document_id, translated_text in completed_translations:
+            complete_translation(document_id, translated_text)
+            logger.info("Completed translation for document %s", document_id)
     except Exception as exc:
         for leased in leased_items:
             next_retry_count = int(leased.get("retry_count", 0)) + 1
@@ -70,7 +92,6 @@ def start_translation(translation_batch_size: int):
 
 
 def start_ocr():
-
     queue_entry = lease_document_for_ocr()
     if queue_entry is None:
         return False
@@ -109,7 +130,9 @@ def process_once(translation_batch_size: int) -> tuple[bool, bool]:
 
     processed_ocr = start_ocr()
     processed_translation = start_translation(translation_batch_size)
-    return bool(recovered_count) or processed_ocr or processed_translation, processed_translation
+    return bool(
+        recovered_count
+    ) or processed_ocr or processed_translation, processed_translation
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from os import getenv
 from pathlib import Path
 
 from sqlalchemy import (
@@ -9,6 +10,7 @@ from sqlalchemy import (
     create_engine,
     func,
     select,
+    text,
     update,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
@@ -17,6 +19,8 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 
 DB_PATH = Path("data/translate_service.sqlite3")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
+DEFAULT_SOURCE_LANGUAGE = getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
+DEFAULT_TARGET_LANGUAGE = getenv("TARGET_LANG_CODE", "en").strip() or "en"
 
 STATUS_PENDING_OCR = "pending_ocr"
 STATUS_PROCESSING_OCR = "processing_ocr"
@@ -40,6 +44,12 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     created_at: Mapped[str] = mapped_column(
         String, nullable=False, default=utc_now_string
+    )
+    source_language: Mapped[str] = mapped_column(
+        String, nullable=False, default=DEFAULT_SOURCE_LANGUAGE
+    )
+    target_language: Mapped[str] = mapped_column(
+        String, nullable=False, default=DEFAULT_TARGET_LANGUAGE
     )
     documents: Mapped[list["Document"]] = relationship(back_populates="project")
 
@@ -79,6 +89,43 @@ engine = create_engine(DATABASE_URL)
 
 def ensure_db() -> None:
     Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        existing_columns = {
+            row[1] for row in connection.execute(text("PRAGMA table_info(projects)"))
+        }
+        if "source_language" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE projects ADD COLUMN source_language TEXT NOT NULL DEFAULT 'bn'"
+                )
+            )
+        if "target_language" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE projects ADD COLUMN target_language TEXT NOT NULL DEFAULT 'en'"
+                )
+            )
+
+        connection.execute(
+            text(
+                """
+                UPDATE projects
+                SET source_language = :source_language
+                WHERE source_language IS NULL OR TRIM(source_language) = ''
+                """
+            ),
+            {"source_language": DEFAULT_SOURCE_LANGUAGE},
+        )
+        connection.execute(
+            text(
+                """
+                UPDATE projects
+                SET target_language = :target_language
+                WHERE target_language IS NULL OR TRIM(target_language) = ''
+                """
+            ),
+            {"target_language": DEFAULT_TARGET_LANGUAGE},
+        )
 
 
 def get_session() -> Session:
@@ -90,7 +137,11 @@ def upsert_project(name: str) -> int:
     with get_session() as session:
         project = session.scalar(select(Project).where(Project.name == name))
         if project is None:
-            project = Project(name=name)
+            project = Project(
+                name=name,
+                source_language=DEFAULT_SOURCE_LANGUAGE,
+                target_language=DEFAULT_TARGET_LANGUAGE,
+            )
             session.add(project)
             session.commit()
             session.refresh(project)
@@ -338,9 +389,12 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
         return []
 
     with get_session() as session:
-        documents = [
-            session.get(Document, document_id) for document_id in leased_document_ids
-        ]
+        rows = session.execute(
+            select(Document, Project)
+            .join(Project, Project.id == Document.project_id)
+            .where(Document.id.in_(leased_document_ids))
+            .order_by(Document.created_at.asc(), Document.id.asc())
+        )
         return [
             {
                 "id": document.id,
@@ -348,9 +402,10 @@ def lease_documents_for_translation(limit: int) -> list[dict]:
                 "source_name": document.source_name,
                 "input_text": document.ocr_text or document.source_text,
                 "retry_count": document.retry_count,
+                "source_language": project.source_language,
+                "target_language": project.target_language,
             }
-            for document in documents
-            if document is not None
+            for document, project in rows
         ]
 
 
