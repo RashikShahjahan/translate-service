@@ -1,7 +1,75 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { StatusBadge, TextPreviewSection, formatTimestamp } from "./app-shared";
 import type { DocumentDetail } from "../types";
+
+function DetailActionIcon(props: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      {props.children}
+    </svg>
+  );
+}
+
+function ArrowLeftIcon() {
+  return (
+    <DetailActionIcon>
+      <path d="M8 5.5 3.5 10 8 14.5" />
+      <path d="M4 10h12.5" />
+    </DetailActionIcon>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <DetailActionIcon>
+      <path d="M11.5 4.5 6 10l5.5 5.5" />
+    </DetailActionIcon>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <DetailActionIcon>
+      <path d="M8.5 4.5 14 10l-5.5 5.5" />
+    </DetailActionIcon>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <DetailActionIcon>
+      <path d="M2.5 10s2.6-4.5 7.5-4.5 7.5 4.5 7.5 4.5-2.6 4.5-7.5 4.5S2.5 10 2.5 10Z" />
+      <circle cx="10" cy="10" r="2.1" />
+    </DetailActionIcon>
+  );
+}
+
+type DetailActionButtonProps = {
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  active?: boolean;
+};
+
+function DetailActionButton(props: DetailActionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      disabled={props.disabled}
+      aria-label={props.label}
+      title={props.label}
+      className={`page-chip detail-action-button ${props.active ? "page-chip-active" : ""}`}
+    >
+      <span className="command-button-icon">{props.icon}</span>
+      <span className="command-button-tooltip" aria-hidden="true">
+        {props.label}
+      </span>
+    </button>
+  );
+}
 
 type DocumentDetailPanelProps = {
   detail: DocumentDetail | null;
@@ -35,9 +103,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
             </div>
             <h2 className="mt-2 text-xl font-semibold text-[var(--app-text)]">No document selected</h2>
           </div>
-          <button type="button" onClick={props.onBack} className="page-chip">
-            Back to workspace
-          </button>
+          <DetailActionButton icon={<ArrowLeftIcon />} label="Back to workspace" onClick={props.onBack} />
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-[var(--app-muted)]">
           Open a document from the list to review it here.
@@ -66,28 +132,25 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
         </div>
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          <button type="button" onClick={() => setShowMetadata((current) => !current)} className="page-chip">
-            {showMetadata ? "Hide details" : "Show details"}
-          </button>
-          <button type="button" onClick={props.onBack} className="page-chip">
-            Back to workspace
-          </button>
-          <button
-            type="button"
+          <DetailActionButton
+            icon={<EyeIcon />}
+            label={showMetadata ? "Hide details" : "Show details"}
+            onClick={() => setShowMetadata((current) => !current)}
+            active={showMetadata}
+          />
+          <DetailActionButton icon={<ArrowLeftIcon />} label="Back to workspace" onClick={props.onBack} />
+          <DetailActionButton
+            icon={<ChevronLeftIcon />}
+            label="Previous document"
             onClick={props.onSelectPreviousDocument ?? undefined}
             disabled={!props.onSelectPreviousDocument}
-            className="page-chip"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
+          />
+          <DetailActionButton
+            icon={<ChevronRightIcon />}
+            label="Next document"
             onClick={props.onSelectNextDocument ?? undefined}
             disabled={!props.onSelectNextDocument}
-            className="page-chip"
-          >
-            Next
-          </button>
+          />
         </div>
       </div>
 

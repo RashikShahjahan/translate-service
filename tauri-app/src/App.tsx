@@ -143,10 +143,14 @@ function CommandButton(props: CommandButtonProps) {
       type="button"
       onClick={props.onClick}
       disabled={props.disabled}
-      className={`command-button ${props.variant === "primary" ? "command-button-primary" : ""}`}
+      aria-label={props.label}
+      title={props.label}
+      className={`command-button desktop-icon-button ${props.variant === "primary" ? "command-button-primary" : ""}`}
     >
       <span className="command-button-icon">{props.icon}</span>
-      <span>{props.label}</span>
+      <span className="command-button-tooltip" aria-hidden="true">
+        {props.label}
+      </span>
     </button>
   );
 }
@@ -601,7 +605,7 @@ function App() {
         <div className="app-main min-h-0">
           <section className="panel-surface flex h-full min-h-0 flex-col rounded-[24px] p-4 sm:p-5">
             <header className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="font-mono-ui text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
                     Translator Service
@@ -622,7 +626,7 @@ function App() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="desktop-toolbar flex flex-wrap items-center gap-2 lg:justify-end">
                   <CommandButton
                     icon={<PlusIcon />}
                     label="New Project"

@@ -13,6 +13,10 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.desktop-toolbar {
+  align-self: flex-start;
+}
+
 .page-nav {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -108,6 +112,19 @@
   transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
+.desktop-icon-button,
+.detail-action-button {
+  position: relative;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0;
+  border-radius: 0.9rem;
+}
+
+.desktop-icon-button.command-button-primary {
+  box-shadow: 0 8px 24px rgba(70, 140, 243, 0.25);
+}
+
 .command-button:hover,
 .panel-inline-action:hover,
 .page-chip:hover {
@@ -166,6 +183,50 @@
   height: 1rem;
 }
 
+.command-button-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  z-index: 20;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 17, 31, 0.96);
+  color: #f5fbff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.25rem);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.command-button-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 17, 31, 0.96);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .desktop-icon-button:hover .command-button-tooltip,
+  .desktop-icon-button:focus-visible .command-button-tooltip,
+  .detail-action-button:hover .command-button-tooltip,
+  .detail-action-button:focus-visible .command-button-tooltip {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -200,6 +261,10 @@
 @media (max-width: 1024px) {
   .app-layout {
     grid-template-columns: 1fr;
+  }
+
+  .desktop-toolbar {
+    align-self: stretch;
   }
 
   .page-nav {
