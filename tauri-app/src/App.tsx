@@ -624,24 +624,30 @@ function App() {
           <section className="flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-[inset_0_1px_0_#ffffff05] backdrop-blur-[14px] sm:p-5">
             <header className="flex flex-col gap-4 border-b border-[var(--app-border)] pb-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
-                    Translator Service
+                <div className="flex items-start gap-3">
+                  {activePage === "review" ? (
+                    <CommandButton icon={<BackIcon />} label="Back to workspace" onClick={() => setActivePage("workspace")} />
+                  ) : null}
+
+                  <div>
+                    <div className="font-[IBM_Plex_Mono] text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent)]">
+                      Translator Service
+                    </div>
+                    <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--app-text)]">
+                      {activePage === "review"
+                        ? "Review document"
+                        : activePage === "settings"
+                          ? "Settings"
+                          : selectedProjectName || "Workspace"}
+                    </h1>
+                    <p className="mt-2 text-sm text-[var(--app-muted)]">
+                      {activePage === "review"
+                        ? detail?.sourceName ?? "Open a document from the list to review it."
+                        : activePage === "settings"
+                          ? "Background worker schedule."
+                          : projectSummary}
+                    </p>
                   </div>
-                  <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--app-text)]">
-                    {activePage === "review"
-                      ? "Review document"
-                      : activePage === "settings"
-                        ? "Settings"
-                        : selectedProjectName || "Workspace"}
-                  </h1>
-                  <p className="mt-2 text-sm text-[var(--app-muted)]">
-                    {activePage === "review"
-                      ? detail?.sourceName ?? "Open a document from the list to review it."
-                      : activePage === "settings"
-                        ? "Background worker schedule."
-                        : projectSummary}
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 self-stretch lg:justify-end lg:self-start">
