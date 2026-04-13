@@ -4,6 +4,16 @@ use std::process::Command;
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
+use tauri::menu::{AboutMetadataBuilder, Menu, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager, Runtime};
+
+const APP_MENU_COMMAND_EVENT: &str = "app-menu-command";
+const MENU_NEW_PROJECT: &str = "file.new-project";
+const MENU_IMPORT_FILES: &str = "file.import-files";
+const MENU_IMPORT_FOLDER: &str = "file.import-folder";
+const MENU_EXPORT_FILES: &str = "file.export-files";
+const MENU_REFRESH: &str = "file.refresh";
+const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -145,6 +155,188 @@ where
     }
 }
 
+fn project_summary_by_name(connection: &Connection, name: &str) -> Result<ProjectSummary, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT
+                projects.id,
+                projects.name,
+                projects.created_at,
+                COUNT(documents.id) AS total_documents,
+                COALESCE(SUM(CASE
+                    WHEN documents.status IN ('pending_ocr', 'pending_translation') THEN 1
+                    ELSE 0
+                END), 0) AS queued_documents,
+                COALESCE(SUM(CASE
+                    WHEN documents.status IN ('processing_ocr', 'processing_translation') THEN 1
+                    ELSE 0
+                END), 0) AS processing_documents,
+                COALESCE(SUM(CASE
+                    WHEN documents.status = 'completed' THEN 1
+                    ELSE 0
+                END), 0) AS completed_documents,
+                COALESCE(SUM(CASE
+                    WHEN documents.error_message IS NOT NULL AND documents.status != 'completed' THEN 1
+                    ELSE 0
+                END), 0) AS errored_documents
+            FROM projects
+            LEFT JOIN documents ON documents.project_id = projects.id
+            WHERE projects.name = ?1
+            GROUP BY projects.id, projects.name, projects.created_at
+            LIMIT 1
+            ",
+        )
+        .map_err(|error| format!("Failed to load project: {error}"))?;
+
+    statement
+        .query_row(params![name], |row| {
+            Ok(ProjectSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                created_at: row.get(2)?,
+                total_documents: row.get(3)?,
+                queued_documents: row.get(4)?,
+                processing_documents: row.get(5)?,
+                completed_documents: row.get(6)?,
+                errored_documents: row.get(7)?,
+            })
+        })
+        .map_err(|error| format!("Failed to read project: {error}"))
+}
+
+fn create_project_with_name(connection: &Connection, name: &str) -> Result<ProjectSummary, String> {
+    connection
+        .execute(
+            "
+            INSERT OR IGNORE INTO projects (name, created_at)
+            VALUES (?1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            ",
+            params![name],
+        )
+        .map_err(|error| format!("Failed to create project: {error}"))?;
+
+    project_summary_by_name(connection, name)
+}
+
+fn next_untitled_project_name(connection: &Connection) -> Result<String, String> {
+    let mut suffix = 1;
+
+    loop {
+        let candidate = if suffix == 1 {
+            UNTITLED_PROJECT_NAME.to_string()
+        } else {
+            format!("{UNTITLED_PROJECT_NAME} {suffix}")
+        };
+
+        let existing = connection
+            .query_row(
+                "SELECT 1 FROM projects WHERE name = ?1 LIMIT 1",
+                params![candidate.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(|error| format!("Failed to check untitled project names: {error}"))?;
+
+        if existing.is_none() {
+            return Ok(candidate);
+        }
+
+        suffix += 1;
+    }
+}
+
+fn emit_menu_command<R: Runtime>(app: &tauri::AppHandle<R>, command: &str) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit(APP_MENU_COMMAND_EVENT, command);
+    }
+}
+
+fn build_app_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let about_metadata = AboutMetadataBuilder::new()
+        .name(Some("Translator Service"))
+        .version(Some(env!("CARGO_PKG_VERSION")))
+        .website(Some("https://github.com"))
+        .build();
+
+    let new_project = MenuItemBuilder::with_id(MENU_NEW_PROJECT, "New Project")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
+    let import_files = MenuItemBuilder::with_id(MENU_IMPORT_FILES, "Import Files...")
+        .accelerator("CmdOrCtrl+O")
+        .build(app)?;
+    let import_folder = MenuItemBuilder::with_id(MENU_IMPORT_FOLDER, "Import Folder...")
+        .accelerator("Shift+CmdOrCtrl+O")
+        .build(app)?;
+    let export_files = MenuItemBuilder::with_id(MENU_EXPORT_FILES, "Export Files...")
+        .accelerator("Shift+CmdOrCtrl+E")
+        .build(app)?;
+    let refresh = MenuItemBuilder::with_id(MENU_REFRESH, "Refresh")
+        .accelerator("CmdOrCtrl+R")
+        .build(app)?;
+
+    let app_submenu = SubmenuBuilder::new(app, "Translator Service")
+        .about(Some(about_metadata))
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+
+    let file_submenu = SubmenuBuilder::new(app, "File")
+        .item(&new_project)
+        .separator()
+        .item(&import_files)
+        .item(&import_folder)
+        .separator()
+        .item(&export_files)
+        .separator()
+        .item(&refresh)
+        .build()?;
+
+    let edit_submenu = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .separator()
+        .select_all()
+        .build()?;
+
+    let view_submenu = SubmenuBuilder::new(app, "View")
+        .fullscreen_with_text("Toggle Full Screen")
+        .build()?;
+
+    let window_submenu = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .maximize_with_text("Zoom")
+        .separator()
+        .show_all_with_text("Bring All to Front")
+        .build()?;
+
+    let help_submenu = SubmenuBuilder::new(app, "Help")
+        .about_with_text("About Translator Service", None)
+        .build()?;
+
+    Menu::with_items(
+        app,
+        &[
+            &app_submenu,
+            &file_submenu,
+            &edit_submenu,
+            &view_submenu,
+            &window_submenu,
+            &help_submenu,
+        ],
+    )
+}
+
 #[tauri::command]
 fn list_projects() -> Result<Vec<ProjectSummary>, String> {
     let connection = open_database()?;
@@ -207,63 +399,14 @@ fn create_project(name: String) -> Result<ProjectSummary, String> {
     }
 
     let connection = open_database()?;
-    connection
-        .execute(
-            "
-            INSERT OR IGNORE INTO projects (name, created_at)
-            VALUES (?1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            ",
-            params![trimmed],
-        )
-        .map_err(|error| format!("Failed to create project: {error}"))?;
+    create_project_with_name(&connection, trimmed)
+}
 
-    let mut statement = connection
-        .prepare(
-            "
-            SELECT
-                projects.id,
-                projects.name,
-                projects.created_at,
-                COUNT(documents.id) AS total_documents,
-                COALESCE(SUM(CASE
-                    WHEN documents.status IN ('pending_ocr', 'pending_translation') THEN 1
-                    ELSE 0
-                END), 0) AS queued_documents,
-                COALESCE(SUM(CASE
-                    WHEN documents.status IN ('processing_ocr', 'processing_translation') THEN 1
-                    ELSE 0
-                END), 0) AS processing_documents,
-                COALESCE(SUM(CASE
-                    WHEN documents.status = 'completed' THEN 1
-                    ELSE 0
-                END), 0) AS completed_documents,
-                COALESCE(SUM(CASE
-                    WHEN documents.error_message IS NOT NULL AND documents.status != 'completed' THEN 1
-                    ELSE 0
-                END), 0) AS errored_documents
-            FROM projects
-            LEFT JOIN documents ON documents.project_id = projects.id
-            WHERE projects.name = ?1
-            GROUP BY projects.id, projects.name, projects.created_at
-            LIMIT 1
-            ",
-        )
-        .map_err(|error| format!("Failed to load created project: {error}"))?;
-
-    statement
-        .query_row(params![trimmed], |row| {
-            Ok(ProjectSummary {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                created_at: row.get(2)?,
-                total_documents: row.get(3)?,
-                queued_documents: row.get(4)?,
-                processing_documents: row.get(5)?,
-                completed_documents: row.get(6)?,
-                errored_documents: row.get(7)?,
-            })
-        })
-        .map_err(|error| format!("Failed to read created project: {error}"))
+#[tauri::command]
+fn create_untitled_project() -> Result<ProjectSummary, String> {
+    let connection = open_database()?;
+    let project_name = next_untitled_project_name(&connection)?;
+    create_project_with_name(&connection, &project_name)
 }
 
 #[tauri::command]
@@ -455,11 +598,22 @@ fn export_project(project_name: String, output_dir: Option<String>) -> Result<Ve
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .enable_macos_default_menu(false)
+        .menu(build_app_menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            MENU_NEW_PROJECT => emit_menu_command(app, "new-project"),
+            MENU_IMPORT_FILES => emit_menu_command(app, "import-files"),
+            MENU_IMPORT_FOLDER => emit_menu_command(app, "import-folder"),
+            MENU_EXPORT_FILES => emit_menu_command(app, "export-files"),
+            MENU_REFRESH => emit_menu_command(app, "refresh"),
+            _ => {}
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_projects,
             create_project,
+            create_untitled_project,
             list_documents,
             get_document_detail,
             add_project_inputs,

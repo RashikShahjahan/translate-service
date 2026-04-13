@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
 
 type ProjectSummary = {
   id: number;
@@ -53,6 +54,7 @@ type DocumentDetail = {
 
 const POLL_INTERVAL_MS = 4000;
 const DOCUMENTS_PAGE_SIZE = 15;
+const APP_MENU_COMMAND_EVENT = "app-menu-command";
 
 const STATUS_STYLES: Record<string, string> = {
   pending_ocr: "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200",
@@ -159,6 +161,113 @@ function App() {
 
   const selectedProject =
     projects.find((project) => project.name === selectedProjectName) ?? null;
+
+  async function createNamedProject(name: string) {
+    const createdProject = await invoke<ProjectSummary>("create_project", {
+      name,
+    });
+    setProjectNameInput("");
+    setDocumentsPage(1);
+    setSelectedProjectName(createdProject.name);
+    await refreshProjects(false);
+    setSelectedProjectName(createdProject.name);
+    setActionMessage(`Project ${createdProject.name} is ready.`);
+  }
+
+  async function createUntitledProject() {
+    setCreatingProject(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const createdProject = await invoke<ProjectSummary>("create_untitled_project");
+      setProjectNameInput("");
+      setDocumentsPage(1);
+      setSelectedProjectName(createdProject.name);
+      await refreshProjects(false);
+      setSelectedProjectName(createdProject.name);
+      setActionMessage(`Project ${createdProject.name} is ready.`);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  async function importProjectInputs(directory: boolean) {
+    if (!selectedProjectName) {
+      setActionError("Create or select a project before importing.");
+      return;
+    }
+
+    setImporting(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const paths = await selectFilePaths({
+        directory,
+        multiple: !directory,
+      });
+      if (!paths.length) {
+        return;
+      }
+
+      await invoke("add_project_inputs", {
+        projectName: selectedProjectName,
+        paths,
+      });
+
+      await refreshProjects(false);
+      await refreshDocuments(selectedProjectName, documentsPage, false);
+      setActionMessage(
+        directory
+          ? `Imported folder into ${selectedProjectName}.`
+          : `Imported ${paths.length} item${paths.length === 1 ? "" : "s"} into ${selectedProjectName}.`,
+      );
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function exportProjectFiles() {
+    if (!selectedProjectName) {
+      setActionError("Choose a project before exporting.");
+      return;
+    }
+
+    setExporting(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const outputs = await invoke<string[]>("export_project", {
+        projectName: selectedProjectName,
+      });
+      await refreshProjects(false);
+      await refreshDocuments(selectedProjectName, documentsPage, false);
+
+      if (outputs.length === 0) {
+        setActionMessage(`Export finished for ${selectedProjectName}.`);
+      } else {
+        setActionMessage(`Exported ${outputs.length} DOCX file${outputs.length === 1 ? "" : "s"}.`);
+      }
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function refreshWorkspace() {
+    setActionError("");
+    setActionMessage("");
+    await refreshProjects(false);
+    await refreshDocuments(selectedProjectName, documentsPage, false);
+    await refreshDetail(selectedDocumentId, false);
+  }
 
   async function refreshProjects(silent = false) {
     if (!silent) {
@@ -284,6 +393,42 @@ function App() {
     return () => window.clearInterval(interval);
   }, [selectedDocumentId]);
 
+  const handleMenuCommand = useEffectEvent((command: string) => {
+    switch (command) {
+      case "new-project":
+        void createUntitledProject();
+        break;
+      case "import-files":
+        void importProjectInputs(false);
+        break;
+      case "import-folder":
+        void importProjectInputs(true);
+        break;
+      case "export-files":
+        void exportProjectFiles();
+        break;
+      case "refresh":
+        void refreshWorkspace();
+        break;
+      default:
+        break;
+    }
+  });
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    void listen<string>(APP_MENU_COMMAND_EVENT, (event) => {
+      handleMenuCommand(event.payload);
+    }).then((nextUnlisten) => {
+      unlisten = nextUnlisten;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [handleMenuCommand]);
+
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreatingProject(true);
@@ -291,95 +436,12 @@ function App() {
     setActionMessage("");
 
     try {
-      const createdProject = await invoke<ProjectSummary>("create_project", {
-        name: projectNameInput,
-      });
-      setProjectNameInput("");
-      setDocumentsPage(1);
-      setSelectedProjectName(createdProject.name);
-      await refreshProjects(false);
-      setSelectedProjectName(createdProject.name);
-      setActionMessage(`Project ${createdProject.name} is ready.`);
+      await createNamedProject(projectNameInput);
     } catch (error) {
       setActionError(messageFromError(error));
     } finally {
       setCreatingProject(false);
     }
-  }
-
-  async function handleImport(directory: boolean) {
-    if (!selectedProjectName) {
-      setActionError("Create or select a project before importing.");
-      return;
-    }
-
-    setImporting(true);
-    setActionError("");
-    setActionMessage("");
-
-    try {
-      const paths = await selectFilePaths({
-        directory,
-        multiple: !directory,
-      });
-      if (!paths.length) {
-        return;
-      }
-
-      await invoke("add_project_inputs", {
-        projectName: selectedProjectName,
-        paths,
-      });
-
-      await refreshProjects(false);
-      await refreshDocuments(selectedProjectName, documentsPage, false);
-      setActionMessage(
-        directory
-          ? `Imported folder into ${selectedProjectName}.`
-          : `Imported ${paths.length} item${paths.length === 1 ? "" : "s"} into ${selectedProjectName}.`,
-      );
-    } catch (error) {
-      setActionError(messageFromError(error));
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function handleExport() {
-    if (!selectedProjectName) {
-      setActionError("Choose a project before exporting.");
-      return;
-    }
-
-    setExporting(true);
-    setActionError("");
-    setActionMessage("");
-
-    try {
-      const outputs = await invoke<string[]>("export_project", {
-        projectName: selectedProjectName,
-      });
-      await refreshProjects(false);
-      await refreshDocuments(selectedProjectName, documentsPage, false);
-
-      if (outputs.length === 0) {
-        setActionMessage(`Export finished for ${selectedProjectName}.`);
-      } else {
-        setActionMessage(`Exported ${outputs.length} DOCX file${outputs.length === 1 ? "" : "s"}.`);
-      }
-    } catch (error) {
-      setActionError(messageFromError(error));
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function handleRefresh() {
-    setActionError("");
-    setActionMessage("");
-    await refreshProjects(false);
-    await refreshDocuments(selectedProjectName, documentsPage, false);
-    await refreshDetail(selectedDocumentId, false);
   }
 
   const documentsTotalPages = Math.max(1, Math.ceil(documentsTotalCount / DOCUMENTS_PAGE_SIZE));
@@ -497,7 +559,7 @@ function App() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void handleImport(false)}
+                onClick={() => void importProjectInputs(false)}
                 disabled={!selectedProjectName || importing}
                 className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -505,7 +567,7 @@ function App() {
               </button>
               <button
                 type="button"
-                onClick={() => void handleImport(true)}
+                onClick={() => void importProjectInputs(true)}
                 disabled={!selectedProjectName || importing}
                 className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -513,14 +575,14 @@ function App() {
               </button>
               <button
                 type="button"
-                onClick={() => void handleRefresh()}
+                onClick={() => void refreshWorkspace()}
                 className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
               >
                 Refresh
               </button>
               <button
                 type="button"
-                onClick={() => void handleExport()}
+                onClick={() => void exportProjectFiles()}
                 disabled={!selectedProjectName || exporting}
                 className="rounded-xl bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
