@@ -22,6 +22,7 @@ const APP_MENU_COMMAND_EVENT = "app-menu-command";
 const STORAGE_KEYS = {
   selectedProjectName: "tauri-app.selected-project-name",
   activePage: "tauri-app.active-page",
+  sidebarVisible: "tauri-app.sidebar-visible",
 };
 
 type AppPage = "workspace" | "review" | "settings";
@@ -44,6 +45,20 @@ function readStoredString(key: string, fallback = "") {
   }
 
   return window.localStorage.getItem(key) ?? fallback;
+}
+
+function readStoredBoolean(key: string, fallback: boolean) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const value = window.localStorage.getItem(key);
+
+  if (value === null) {
+    return fallback;
+  }
+
+  return value === "true";
 }
 
 async function selectFilePaths(options: {
@@ -129,6 +144,15 @@ function BackIcon() {
   );
 }
 
+function SidebarIcon() {
+  return (
+    <ToolbarIcon>
+      <rect x="3.5" y="4" width="13" height="12" rx="1.75" />
+      <path d="M8 4v12" />
+    </ToolbarIcon>
+  );
+}
+
 type CommandButtonProps = {
   icon: ReactNode;
   label: string;
@@ -203,6 +227,7 @@ function App() {
     const value = readStoredString(STORAGE_KEYS.activePage, "workspace");
     return value === "review" || value === "settings" ? value : "workspace";
   });
+  const [sidebarVisible, setSidebarVisible] = useState(() => readStoredBoolean(STORAGE_KEYS.sidebarVisible, true));
 
   const selectedProject = projects.find((project) => project.name === selectedProjectName) ?? null;
   const selectedDocumentIndex = documents.findIndex((document) => document.id === selectedDocumentId);
@@ -536,6 +561,10 @@ function App() {
     window.localStorage.setItem(STORAGE_KEYS.activePage, activePage);
   }, [activePage]);
 
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.sidebarVisible, String(sidebarVisible));
+  }, [sidebarVisible]);
+
   const handleMenuCommand = useEffectEvent((command: string) => {
     switch (command) {
       case "new-project":
@@ -598,27 +627,33 @@ function App() {
 
   const statusText = actionError || actionMessage || (loadingProjects ? "Refreshing projects..." : "Ready");
   const statusToneClass = `${pillClass} ${actionError ? pillErrorClass : ""}`;
+  const shellClass = sidebarVisible
+    ? "mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]"
+    : "mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4";
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(103,183,255,0.12),transparent_26%),linear-gradient(180deg,#07111f_0%,#091423_100%)] text-[var(--app-text)]">
-      <div className="mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]">
-        <div className="app-sidebar min-h-0">
-          <ProjectSidebar
-            projects={projects}
-            selectedProjectName={selectedProjectName}
-            loadingProjects={loadingProjects}
-            onSelectProject={(name) => {
-              setDocumentsPage(1);
-              setSelectedProjectName(name);
-              if (activePage === "review") {
+      <div className={shellClass}>
+        {sidebarVisible ? (
+          <div className="app-sidebar min-h-0">
+            <ProjectSidebar
+              projects={projects}
+              selectedProjectName={selectedProjectName}
+              loadingProjects={loadingProjects}
+              onSelectProject={(name) => {
+                setDocumentsPage(1);
+                setSelectedProjectName(name);
+                if (activePage === "review") {
+                  setActivePage("workspace");
+                }
+              }}
+              onCreateProject={() => {
+                setShowCreatePanel(true);
                 setActivePage("workspace");
-              }
-            }}
-            onCreateProject={() => {
-              setShowCreatePanel(true);
-              setActivePage("workspace");
-            }}
-          />
-        </div>
+              }}
+            />
+          </div>
+        ) : null}
 
         <div className="app-main min-h-0">
           <section className="flex h-full min-h-0 flex-col rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 shadow-[inset_0_1px_0_#ffffff05] backdrop-blur-[14px] sm:p-5">
@@ -651,6 +686,11 @@ function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 self-stretch lg:justify-end lg:self-start">
+                  <CommandButton
+                    icon={<SidebarIcon />}
+                    label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+                    onClick={() => setSidebarVisible((current) => !current)}
+                  />
                   <CommandButton
                     icon={<PlusIcon />}
                     label="New Project"
