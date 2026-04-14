@@ -1,4 +1,26 @@
-# Environment
+# Translate Service
+
+Translate Service stores source documents in SQLite, runs OCR for image inputs, translates queued text with MLX models, and can export completed documents as `.docx`. The repo also includes a Tauri desktop app for managing projects, imports, exports, translation settings, and the macOS worker schedule.
+
+## Project layout
+
+- `src/`: Python CLI, worker, and translation/OCR utilities
+- `data/translate_service.sqlite3`: local SQLite database created on first use
+- `output/`: default export location for generated `.docx` files
+- `tauri-app/`: desktop app built with Tauri, React, and Vite
+- `scripts/`: macOS worker scheduling helpers
+
+## Backend setup
+
+- Python `>=3.14`
+- `uv` for environment and command execution
+- Apple Silicon / macOS is implied for the MLX translation path
+
+Install dependencies:
+
+- `uv sync`
+
+## Environment
 
 - `GEMINI_API_KEY`: Required for OCR against the Gemini API.
 - `OCR_MODEL`: OCR model name. Default: `gemini-3.1-flash-lite-preview` (Currently only supports Gemini models.)
@@ -15,13 +37,15 @@
 - `IDLE_SLEEP_SECONDS`: How long the worker sleeps when there is nothing to process. Default: `60`
 - `LOG_LEVEL`: Logging verbosity for CLI and worker runs. Default: `INFO`
 
+Notes:
+
+- `GEMINI_API_KEY` is required only when you want OCR for image inputs.
+- Text inputs do not require OCR and are queued directly for translation.
+- New projects default to `SOURCE_LANG_CODE` and `TARGET_LANG_CODE`, but each project can be updated later from the Tauri app.
+
 # Commands
 
 Use `uv run ...` if you are working from the project environment.
-
-## Install dependencies
-
-- `uv sync`: Create or update the local environment from `pyproject.toml` and `uv.lock`.
 
 ## Queue work
 
@@ -108,3 +132,37 @@ For a persistent macOS background service, use `launchd`:
     - `bash scripts/install_launch_agent.sh`
 
 The LaunchAgent template lives under `launchd/` and uses `__WORKDIR__` and `__UV_BIN__` placeholders. It also sets default `WORKER_ACTIVE_START_TIME=00:00` and `WORKER_ACTIVE_END_TIME=08:00` in the LaunchAgent environment. Scheduling is managed by `launchd` plus [`run_scheduled_worker.sh`](/Users/rashik/translate-service/scripts/run_scheduled_worker.sh). The worker's application logs are written to `logs/translate_service.log`. The LaunchAgent stdout and stderr streams are written to `logs/worker.stdout.log` and `logs/worker.stderr.log`.
+
+## Build and run the Tauri app
+
+The desktop app lives in `tauri-app/` and uses Vite for the frontend plus Rust/Tauri for the native shell.
+
+Prerequisites:
+
+- Install JavaScript dependencies from `tauri-app/`: `npm install`
+- Install Bun, because the Tauri config runs `bun run dev` and `bun run build`
+- Install the Rust toolchain and Tauri system dependencies for your platform
+- The desktop app reads and updates the same `data/translate_service.sqlite3` database as the Python CLI and worker
+
+Run the app in development:
+
+1. Start from the app directory: `cd tauri-app`
+2. Launch the desktop app with hot reload: `npm run tauri dev`
+
+Build a production app bundle:
+
+- From `tauri-app/`, run `npm run tauri build`
+- On macOS, to build only the `.app` bundle, run `npm run build:macos-app`
+- Build artifacts are written under `tauri-app/src-tauri/target/release/bundle/`
+
+Current app capabilities:
+
+- Create named or untitled projects
+- Import files or folders into a project
+- Browse document status, retry failed items, and inspect OCR/translation output
+- Export completed project documents as `.docx`
+- Update project source and target languages
+- Update the global translation model
+- Install or remove the macOS LaunchAgent worker schedule from the app
+
+There is no separate app README. Use this root README for both the backend and the Tauri app.
