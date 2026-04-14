@@ -151,21 +151,21 @@ type CommandButtonProps = {
 };
 
 const iconButtonBaseClass =
-  "group relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/[0.055] text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+  "group relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/[0.045] text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55";
 const iconButtonPrimaryClass =
-  "border-[rgba(103,183,255,0.3)] bg-[linear-gradient(135deg,#67b7ff,#468cf3)] text-[#04101d] shadow-[0_8px_24px_rgba(70,140,243,0.25)] hover:bg-[linear-gradient(135deg,#7cc2ff,#4f92f3)]";
+  "border-[rgba(142,182,219,0.28)] bg-[linear-gradient(135deg,#8eb6db,#789fc4)] text-[#15202b] shadow-[0_8px_24px_rgba(120,159,196,0.2)] hover:bg-[linear-gradient(135deg,#99bddf,#82a8cb)]";
 const iconClass = "inline-flex h-4 w-4 items-center justify-center";
 const tooltipClass =
   "pointer-events-none absolute bottom-[calc(100%+0.55rem)] left-1/2 z-20 hidden -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[0.65rem] border border-white/8 bg-[rgba(7,17,31,0.96)] px-[0.65rem] py-[0.45rem] text-xs font-semibold leading-none text-[#f5fbff] opacity-0 transition duration-150 group-hover:block group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:block group-focus-visible:translate-y-0 group-focus-visible:opacity-100";
 const tooltipArrowClass =
   "absolute left-1/2 top-full h-[0.55rem] w-[0.55rem] -translate-x-1/2 -translate-y-1/2 rotate-45 border-r border-b border-white/8 bg-[rgba(7,17,31,0.96)]";
 const pillClass =
-  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.045] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
-const pillErrorClass = "border-rose-400/30 bg-rose-400/12 text-rose-100";
+  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.04] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
+const pillErrorClass = "border-rose-300/25 bg-rose-300/10 text-rose-50";
 const actionButtonClass =
-  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(103,183,255,0.3)] bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 text-sm font-semibold leading-none text-[#04101d] transition hover:bg-[linear-gradient(135deg,#7cc2ff,#4f92f3)] disabled:cursor-not-allowed disabled:opacity-55";
+  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(142,182,219,0.28)] bg-[linear-gradient(135deg,#8eb6db,#789fc4)] px-4 text-sm font-semibold leading-none text-[#15202b] transition hover:bg-[linear-gradient(135deg,#99bddf,#82a8cb)] disabled:cursor-not-allowed disabled:opacity-55";
 const secondaryActionButtonClass =
-  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[var(--app-border)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+  "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[var(--app-border)] bg-white/[0.045] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55";
 
 function CommandButton(props: CommandButtonProps) {
   return (
@@ -722,7 +722,7 @@ function App() {
     : "mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(103,183,255,0.12),transparent_26%),linear-gradient(180deg,#07111f_0%,#091423_100%)] text-[var(--app-text)]">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(142,182,219,0.12),transparent_28%),linear-gradient(180deg,#151b23_0%,#11161d_100%)] text-[var(--app-text)]">
       <div className={shellClass}>
         {showSidebar ? (
           <div className="app-sidebar min-h-0">

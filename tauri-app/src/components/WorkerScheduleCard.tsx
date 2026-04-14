@@ -89,7 +89,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
               <span
                 className={`rounded-full px-3 py-1 ${
                   props.workerSchedule.installed
-                    ? "border border-emerald-400/20 bg-emerald-400/12 text-emerald-200"
+                    ? "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100"
                     : "border border-[var(--app-border)] bg-white/6 text-[var(--app-muted)]"
                 }`}
               >
@@ -98,7 +98,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
               <span
                 className={`rounded-full px-3 py-1 ${
                   props.workerSchedule.loaded
-                    ? "border border-sky-400/20 bg-sky-400/12 text-sky-200"
+                    ? "border border-sky-300/20 bg-sky-300/10 text-sky-100"
                     : "border border-[var(--app-border)] bg-white/6 text-[var(--app-muted)]"
                 }`}
               >
@@ -135,7 +135,7 @@ function WorkerScheduleCard(props: WorkerScheduleCardProps) {
               type="button"
               onClick={props.onSaveWorkerSchedule}
               disabled={disabled}
-              className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+               className="rounded-full border border-[rgba(142,182,219,0.28)] bg-[linear-gradient(135deg,#8eb6db,#789fc4)] px-4 py-2 text-sm font-semibold text-[#15202b] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {props.savingWorkerSchedule
                 ? "Saving..."

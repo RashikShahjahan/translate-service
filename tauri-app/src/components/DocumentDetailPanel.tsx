@@ -4,15 +4,15 @@ import { StatusBadge, TextPreviewSection, formatTimestamp } from "./app-shared";
 import type { DocumentDetail } from "../types";
 
 const detailActionButtonClass =
-  "group relative inline-flex min-h-8 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/4 px-[0.9rem] text-[0.8125rem] font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
-const detailActionButtonActiveClass = "border-[rgba(103,183,255,0.32)] bg-[rgba(103,183,255,0.14)] text-[#dff1ff]";
+  "group relative inline-flex min-h-8 min-w-10 items-center justify-center rounded-[0.9rem] border border-[var(--app-border)] bg-white/[0.04] px-[0.9rem] text-[0.8125rem] font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55";
+const detailActionButtonActiveClass = "border-[rgba(142,182,219,0.3)] bg-[rgba(142,182,219,0.12)] text-[#edf5fb]";
 const detailIconClass = "inline-flex h-4 w-4 items-center justify-center";
 const detailTooltipClass =
   "pointer-events-none absolute bottom-[calc(100%+0.55rem)] left-1/2 z-20 hidden -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[0.65rem] border border-white/8 bg-[rgba(7,17,31,0.96)] px-[0.65rem] py-[0.45rem] text-xs font-semibold leading-none text-[#f5fbff] opacity-0 transition duration-150 group-hover:block group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:block group-focus-visible:translate-y-0 group-focus-visible:opacity-100";
 const detailTooltipArrowClass =
   "absolute left-1/2 top-full h-[0.55rem] w-[0.55rem] -translate-x-1/2 -translate-y-1/2 rotate-45 border-r border-b border-white/8 bg-[rgba(7,17,31,0.96)]";
 const detailPillClass =
-  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.045] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
+  "inline-flex min-h-8 max-w-full items-center rounded-full border border-white/8 bg-white/[0.04] px-3 py-[0.35rem] text-[0.8125rem] text-[var(--app-text)]";
 
 function DetailActionIcon(props: { children: ReactNode }) {
   return (
@@ -173,9 +173,9 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
 
       <div className="mt-5 min-h-0 flex-1 overflow-auto pr-1">
         {props.detail.errorMessage ? (
-          <section className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/10 p-4">
-            <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-rose-200">Error</div>
-            <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-rose-100">
+          <section className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/10 p-4">
+            <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-rose-100">Error</div>
+            <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-rose-50">
               {props.detail.errorMessage.trim()}
             </pre>
             {props.onRetryDocument ? (
@@ -184,7 +184,7 @@ function DocumentDetailPanel(props: DocumentDetailPanelProps) {
                   type="button"
                   onClick={props.onRetryDocument}
                   disabled={props.retrying}
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55"
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[rgba(142,182,219,0.24)] bg-white/[0.045] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {props.retrying ? "Retrying..." : "Retry now"}
                 </button>

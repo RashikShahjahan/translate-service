@@ -25,7 +25,7 @@ type DocumentsTableProps = {
 
 function DocumentsTable(props: DocumentsTableProps) {
   const inlineActionClass =
-    "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55";
+    "inline-flex min-h-10 items-center justify-center gap-[0.55rem] rounded-full border border-[rgba(142,182,219,0.24)] bg-white/[0.045] px-4 text-sm font-semibold leading-none text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55";
 
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] backdrop-blur-[10px]">
@@ -92,7 +92,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                   <tr
                     key={document.id}
                     onClick={() => props.onSelectDocument(document.id)}
-                    className={`cursor-pointer transition ${selected ? "bg-[linear-gradient(90deg,rgba(103,183,255,0.16),rgba(255,255,255,0.02))]" : "hover:bg-white/4"}`}
+                    className={`cursor-pointer transition ${selected ? "bg-[linear-gradient(90deg,rgba(142,182,219,0.14),rgba(255,255,255,0.02))]" : "hover:bg-white/[0.035]"}`}
                   >
                     <td className="border-t border-[var(--app-border)] px-4 py-3.5 align-top">
                       <div className="max-w-[420px] truncate text-sm font-medium text-[var(--app-text)]">
@@ -101,7 +101,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--app-muted)]">
                         <span>Created {formatTimestamp(document.createdAt)}</span>
                         {document.errorMessage ? (
-                          <span className="rounded-full border border-rose-400/20 bg-rose-400/12 px-2 py-1 text-[11px] font-semibold text-rose-200">
+                          <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-2 py-1 text-[11px] font-semibold text-rose-50">
                             Needs attention
                           </span>
                         ) : null}
@@ -113,7 +113,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                               props.onRetryDocument(document.id);
                             }}
                             disabled={retrying}
-                            className="rounded-full border border-[rgba(103,183,255,0.3)] bg-white/[0.055] px-3 py-1 text-[11px] font-semibold text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-55"
+                            className="rounded-full border border-[rgba(142,182,219,0.24)] bg-white/[0.045] px-3 py-1 text-[11px] font-semibold text-[var(--app-text)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-55"
                           >
                             {retrying ? "Retrying..." : "Retry now"}
                           </button>
@@ -142,7 +142,7 @@ function DocumentsTable(props: DocumentsTableProps) {
               })}
             </tbody>
           </table>
-          <div className="flex flex-col gap-3 border-t border-[var(--app-border)] bg-white/4 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-[var(--app-border)] bg-white/[0.035] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-[var(--app-muted)]">
               Page {props.documentsPage} of {props.documentsTotalPages}
             </div>
@@ -151,7 +151,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                 type="button"
                 onClick={props.onPreviousPage}
                 disabled={props.documentsPage <= 1 || props.loadingDocuments}
-                className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-1.5 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-[var(--app-border)] bg-white/[0.045] px-4 py-1.5 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Previous
               </button>
@@ -159,7 +159,7 @@ function DocumentsTable(props: DocumentsTableProps) {
                 type="button"
                 onClick={props.onNextPage}
                 disabled={props.documentsPage >= props.documentsTotalPages || props.loadingDocuments}
-                className="rounded-full border border-[var(--app-border)] bg-white/6 px-4 py-1.5 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-[var(--app-border)] bg-white/[0.045] px-4 py-1.5 text-sm font-medium text-[var(--app-text)] transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>

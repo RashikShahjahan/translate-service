@@ -23,7 +23,7 @@ function TranslationSettingsCard(props: TranslationSettingsCardProps) {
           <p className="mt-1 max-w-2xl text-sm text-[var(--app-muted)]">
             Choose the MLX model the worker should load for translation jobs.
           </p>
-          <div className="mt-3 inline-flex max-w-full items-center rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-xs text-sky-100">
+          <div className="mt-3 inline-flex max-w-full items-center rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs text-sky-100">
             Current model: <span className="ml-2 font-[IBM_Plex_Mono] text-[11px]">{props.translationModel || "-"}</span>
           </div>
         </div>
@@ -58,7 +58,7 @@ function TranslationSettingsCard(props: TranslationSettingsCardProps) {
             type="button"
             onClick={props.onSaveTranslationModel}
             disabled={disabled || !props.translationModel.trim()}
-            className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-[rgba(142,182,219,0.28)] bg-[linear-gradient(135deg,#8eb6db,#789fc4)] px-4 py-2 text-sm font-semibold text-[#15202b] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {props.savingTranslationModel ? "Saving..." : "Save model"}
           </button>

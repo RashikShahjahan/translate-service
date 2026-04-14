@@ -13,20 +13,20 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    --app-bg: #090d14;
-    --app-bg-elevated: #0f1520;
-    --app-panel: #0e141ff5;
-    --app-panel-strong: #101723fa;
-    --app-panel-soft: #0c121cf5;
-    --app-border: #9aa8bd1f;
-    --app-border-strong: #6dc0ff38;
-    --app-text: #e7ecf3;
-    --app-muted: #8e9aae;
-    --app-accent: #67b7ff;
-    --app-accent-strong: #9ed0ff;
-    --app-danger: #ff7b72;
-    --app-success: #43c58b;
-    background: #0b0f17;
+    --app-bg: #11161d;
+    --app-bg-elevated: #161d27;
+    --app-panel: #1a212ce8;
+    --app-panel-strong: #202835f0;
+    --app-panel-soft: #151b25e6;
+    --app-border: #b8c4d41a;
+    --app-border-strong: #8fb3d93d;
+    --app-text: #e2e8f0;
+    --app-muted: #a3adbb;
+    --app-accent: #8eb6db;
+    --app-accent-strong: #b7cee4;
+    --app-danger: #d49393;
+    --app-success: #7fb29a;
+    background: #151b23;
     font-family: var(--font-display);
     font-weight: 400;
     line-height: 1.5;
@@ -45,7 +45,7 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background: linear-gradient(180deg, #080c13 0%, #090d14 100%);
+    background: linear-gradient(180deg, #151b23 0%, #11161d 100%);
     color: var(--app-text);
     font-family: var(--font-display);
   }

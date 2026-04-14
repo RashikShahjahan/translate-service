@@ -17,11 +17,11 @@ function formatTimestamp(value: string | null | undefined) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending_ocr: "border border-amber-400/20 bg-amber-400/12 text-amber-200",
-  processing_ocr: "border border-orange-400/20 bg-orange-400/12 text-orange-200",
-  pending_translation: "border border-fuchsia-400/20 bg-fuchsia-400/12 text-fuchsia-200",
-  processing_translation: "border border-sky-400/20 bg-sky-400/12 text-sky-200",
-  completed: "border border-emerald-400/20 bg-emerald-400/12 text-emerald-200",
+  pending_ocr: "border border-amber-300/20 bg-amber-300/10 text-amber-100",
+  processing_ocr: "border border-orange-300/20 bg-orange-300/10 text-orange-100",
+  pending_translation: "border border-violet-300/20 bg-violet-300/10 text-violet-100",
+  processing_translation: "border border-sky-300/20 bg-sky-300/10 text-sky-100",
+  completed: "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -66,7 +66,7 @@ function TextPreviewSection(props: { label: string; value: string }) {
   return (
     <section className="rounded-xl border border-[#8497b01a] bg-[var(--app-panel-soft)] p-4 backdrop-blur-[10px]">
       <div className="font-[IBM_Plex_Mono] text-[11px] uppercase tracking-[0.22em] text-[var(--app-muted)]">{props.label}</div>
-      <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--app-border)] bg-black/20 p-4 text-sm leading-6 text-[var(--app-text)]">
+      <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--app-border)] bg-black/10 p-4 text-sm leading-6 text-[var(--app-text)]">
         {props.value}
       </pre>
     </section>

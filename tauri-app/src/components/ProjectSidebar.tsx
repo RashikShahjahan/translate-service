@@ -10,7 +10,7 @@ type ProjectSidebarProps = {
 
 function ProjectSidebar(props: ProjectSidebarProps) {
   const createButtonClass =
-    "inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white/[0.045] px-4 text-sm font-semibold text-[var(--app-text)] shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.08]";
+    "inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[var(--app-border)] bg-white/[0.04] px-4 text-sm font-semibold text-[var(--app-text)] shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition hover:border-[var(--app-border-strong)] hover:bg-white/[0.065]";
 
   const projectItemClass =
     "w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-[var(--app-text)] transition";
@@ -35,7 +35,7 @@ function ProjectSidebar(props: ProjectSidebarProps) {
 
       <div className="mt-4 min-h-0 space-y-1 overflow-auto pr-1">
         {props.projects.length === 0 ? (
-          <div className="rounded-2xl bg-white/4 p-4 text-sm text-[var(--app-muted)]">
+          <div className="rounded-2xl bg-white/[0.035] p-4 text-sm text-[var(--app-muted)]">
             <div>No projects yet. Create one to start a queue and import files.</div>
           </div>
         ) : null}
@@ -50,8 +50,8 @@ function ProjectSidebar(props: ProjectSidebarProps) {
               onClick={() => props.onSelectProject(project.name)}
               className={`${projectItemClass} ${
                 selected
-                  ? "bg-white/10"
-                  : "bg-transparent hover:bg-white/5"
+                  ? "bg-white/[0.07]"
+                  : "bg-transparent hover:bg-white/[0.04]"
                }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -62,7 +62,7 @@ function ProjectSidebar(props: ProjectSidebarProps) {
                   </div>
                 </div>
                 {project.erroredDocuments > 0 ? (
-                  <span className="shrink-0 rounded-full bg-rose-400/12 px-2.5 py-1 text-[11px] font-semibold text-rose-200">
+                  <span className="shrink-0 rounded-full border border-rose-300/20 bg-rose-300/10 px-2.5 py-1 text-[11px] font-semibold text-rose-50">
                     {project.erroredDocuments}
                   </span>
                 ) : null}
