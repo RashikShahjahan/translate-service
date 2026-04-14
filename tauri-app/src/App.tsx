@@ -5,9 +5,11 @@ import { useEffect, useEffectEvent, useMemo, useState, type FormEvent, type Reac
 
 import DocumentDetailPanel from "./components/DocumentDetailPanel";
 import ProjectSidebar from "./components/ProjectSidebar";
+import TranslationSettingsCard from "./components/TranslationSettingsCard";
 import WorkspacePanel from "./components/WorkspacePanel";
 import WorkerScheduleCard from "./components/WorkerScheduleCard";
 import type {
+  AppSettings,
   DocumentDetail,
   DocumentListResponse,
   DocumentRow,
@@ -206,8 +208,11 @@ function App() {
   const [savingProjectLanguages, setSavingProjectLanguages] = useState(false);
   const [retryingDocumentId, setRetryingDocumentId] = useState<number | null>(null);
   const [workerSchedule, setWorkerSchedule] = useState<WorkerScheduleStatus | null>(null);
+  const [translationModelInput, setTranslationModelInput] = useState("");
   const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
   const [scheduleEndTime, setScheduleEndTime] = useState("08:00");
+  const [loadingTranslationModel, setLoadingTranslationModel] = useState(true);
+  const [savingTranslationModel, setSavingTranslationModel] = useState(false);
   const [loadingWorkerSchedule, setLoadingWorkerSchedule] = useState(true);
   const [savingWorkerSchedule, setSavingWorkerSchedule] = useState(false);
   const [removingWorkerSchedule, setRemovingWorkerSchedule] = useState(false);
@@ -403,8 +408,44 @@ function App() {
     await refreshProjects(false);
     await refreshDocuments(selectedProjectName, documentsPage, false);
     await refreshDetail(selectedDocumentId, false);
+    await refreshAppSettings(false);
     await refreshWorkerSchedule(false);
     setActionMessage("Workspace refreshed.");
+  }
+
+  async function refreshAppSettings(silent = false) {
+    if (!silent) {
+      setLoadingTranslationModel(true);
+    }
+
+    try {
+      const nextSettings = await invoke<AppSettings>("get_app_settings");
+      setTranslationModelInput(nextSettings.translationModel);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      if (!silent) {
+        setLoadingTranslationModel(false);
+      }
+    }
+  }
+
+  async function saveTranslationModel() {
+    setSavingTranslationModel(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const nextSettings = await invoke<AppSettings>("update_translation_model", {
+        translationModel: translationModelInput,
+      });
+      setTranslationModelInput(nextSettings.translationModel);
+      setActionMessage(`Translation model set to ${nextSettings.translationModel}.`);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setSavingTranslationModel(false);
+    }
   }
 
   async function refreshWorkerSchedule(silent = false) {
@@ -556,10 +597,12 @@ function App() {
 
   useEffect(() => {
     void refreshProjects(false);
+    void refreshAppSettings(false);
     void refreshWorkerSchedule(false);
 
     const interval = window.setInterval(() => {
       void refreshProjects(true);
+      void refreshAppSettings(true);
       void refreshWorkerSchedule(true);
     }, POLL_INTERVAL_MS);
 
@@ -721,11 +764,11 @@ function App() {
                           ? "Settings"
                           : selectedProjectName || "Workspace"}
                     </h1>
-                    <p className="mt-2 text-sm text-[var(--app-muted)]">
+                      <p className="mt-2 text-sm text-[var(--app-muted)]">
                       {activePage === "review"
                         ? detail?.sourceName ?? "Open a document from the list to review it."
                         : activePage === "settings"
-                          ? "Background worker schedule."
+                          ? "Translation runtime and background worker settings."
                           : projectSummary}
                     </p>
                   </div>
@@ -844,18 +887,27 @@ function App() {
                   <div className="mb-4 flex justify-start">
                     <CommandButton icon={<BackIcon />} label="Back to project" onClick={() => setActivePage("workspace")} />
                   </div>
-                  <WorkerScheduleCard
-                    workerSchedule={workerSchedule}
-                    scheduleStartTime={scheduleStartTime}
-                    scheduleEndTime={scheduleEndTime}
-                    loadingWorkerSchedule={loadingWorkerSchedule}
-                    savingWorkerSchedule={savingWorkerSchedule}
-                    removingWorkerSchedule={removingWorkerSchedule}
-                    onScheduleStartTimeChange={setScheduleStartTime}
-                    onScheduleEndTimeChange={setScheduleEndTime}
-                    onSaveWorkerSchedule={() => void saveWorkerSchedule()}
-                    onRemoveWorkerSchedule={() => void removeWorkerSchedule()}
-                  />
+                  <div className="space-y-4">
+                    <TranslationSettingsCard
+                      translationModel={translationModelInput}
+                      loadingTranslationModel={loadingTranslationModel}
+                      savingTranslationModel={savingTranslationModel}
+                      onTranslationModelChange={setTranslationModelInput}
+                      onSaveTranslationModel={() => void saveTranslationModel()}
+                    />
+                    <WorkerScheduleCard
+                      workerSchedule={workerSchedule}
+                      scheduleStartTime={scheduleStartTime}
+                      scheduleEndTime={scheduleEndTime}
+                      loadingWorkerSchedule={loadingWorkerSchedule}
+                      savingWorkerSchedule={savingWorkerSchedule}
+                      removingWorkerSchedule={removingWorkerSchedule}
+                      onScheduleStartTimeChange={setScheduleStartTime}
+                      onScheduleEndTimeChange={setScheduleEndTime}
+                      onSaveWorkerSchedule={() => void saveWorkerSchedule()}
+                      onRemoveWorkerSchedule={() => void removeWorkerSchedule()}
+                    />
+                  </div>
                 </div>
               )}
             </div>
