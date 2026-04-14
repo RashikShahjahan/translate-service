@@ -337,7 +337,15 @@ function App() {
     setActionMessage("");
 
     try {
-      const outputs = await invoke<string[]>("export_project", { projectName: selectedProjectName });
+      const [outputDir] = await selectFilePaths({ directory: true, multiple: false });
+      if (!outputDir) {
+        return;
+      }
+
+      const outputs = await invoke<string[]>("export_project", {
+        projectName: selectedProjectName,
+        outputDir,
+      });
       await refreshProjects(false);
       await refreshDocuments(selectedProjectName, documentsPage, false);
       setActionMessage(
