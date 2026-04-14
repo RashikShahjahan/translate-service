@@ -716,14 +716,15 @@ function App() {
 
   const statusText = actionError || actionMessage || (loadingProjects ? "Refreshing projects..." : "Ready");
   const statusToneClass = `${pillClass} ${actionError ? pillErrorClass : ""}`;
-  const shellClass = sidebarVisible
+  const showSidebar = sidebarVisible && activePage !== "settings";
+  const shellClass = showSidebar
     ? "mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]"
     : "mx-auto grid min-h-screen max-w-[1600px] grid-cols-1 gap-4 p-3 sm:p-4";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(103,183,255,0.12),transparent_26%),linear-gradient(180deg,#07111f_0%,#091423_100%)] text-[var(--app-text)]">
       <div className={shellClass}>
-        {sidebarVisible ? (
+        {showSidebar ? (
           <div className="app-sidebar min-h-0">
             <ProjectSidebar
               projects={projects}
@@ -775,11 +776,13 @@ function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 self-stretch lg:justify-end lg:self-start">
-                  <CommandButton
-                    icon={<SidebarIcon />}
-                    label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
-                    onClick={() => setSidebarVisible((current) => !current)}
-                  />
+                  {activePage === "settings" ? null : (
+                    <CommandButton
+                      icon={<SidebarIcon />}
+                      label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+                      onClick={() => setSidebarVisible((current) => !current)}
+                    />
+                  )}
                   <CommandButton
                     icon={<ExportIcon />}
                     label={exporting ? "Exporting..." : "Export"}
