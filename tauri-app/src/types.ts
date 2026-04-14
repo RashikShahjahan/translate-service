@@ -57,3 +57,7 @@ export type WorkerScheduleStatus = {
   endTime: string;
   plistPath: string;
 };
+
+export type AppSettings = {
+  translationModel: string;
+};

@@ -19,8 +19,14 @@ const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
 const WORKER_LABEL: &str = "local.translate-service.worker";
 const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
 const DEFAULT_WORKER_ACTIVE_END_TIME: &str = "08:00";
+const DEFAULT_TRANSLATION_MODEL: &str = "mlx-community/translategemma-12b-it-4bit";
 const DEFAULT_SOURCE_LANGUAGE: &str = "bn";
 const DEFAULT_TARGET_LANGUAGE: &str = "en";
+const SUPPORTED_TRANSLATION_MODELS: [&str; 3] = [
+    "mlx-community/translategemma-12b-it-4bit",
+    "mlx-community/translategemma-4b-it-4bit",
+    "mlx-community/translategemma-27b-it-4bit",
+];
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +98,12 @@ struct WorkerScheduleStatus {
     plist_path: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+    translation_model: String,
+}
+
 fn default_language_code(env_name: &str, fallback: &str) -> String {
     env::var(env_name)
         .ok()
@@ -115,6 +127,27 @@ fn validate_language_code(value: &str, label: &str) -> Result<String, String> {
 
     if trimmed.len() == 2 {
         return Ok(trimmed.to_ascii_lowercase());
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn default_translation_model() -> String {
+    env::var("TRANSLATION_MODEL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_TRANSLATION_MODEL.to_string())
+}
+
+fn validate_translation_model(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("Translation model is required".to_string());
+    }
+
+    if !SUPPORTED_TRANSLATION_MODELS.contains(&trimmed) {
+        return Err("Translation model is not supported".to_string());
     }
 
     Ok(trimmed.to_string())
@@ -287,10 +320,16 @@ fn worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
     let default_source_language = default_language_code("SOURCE_LANG_CODE", DEFAULT_SOURCE_LANGUAGE);
     let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
+    let default_translation_model = default_translation_model();
 
     connection
         .execute_batch(
             "
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
@@ -356,7 +395,35 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| format!("Failed to backfill target language: {error}"))?;
 
+    connection
+        .execute(
+            "
+            INSERT INTO app_settings (key, value)
+            VALUES ('translation_model', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            WHERE TRIM(app_settings.value) = ''
+            ",
+            params![default_translation_model],
+        )
+        .map_err(|error| format!("Failed to backfill translation model: {error}"))?;
+
     Ok(())
+}
+
+fn load_app_settings(connection: &Connection) -> Result<AppSettings, String> {
+    let translation_model = connection
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = 'translation_model' LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("Failed to load app settings: {error}"))?
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(default_translation_model);
+
+    Ok(AppSettings { translation_model })
 }
 
 fn run_python_cli<I, S>(args: I) -> Result<String, String>
@@ -887,6 +954,31 @@ fn get_worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
 }
 
 #[tauri::command]
+fn get_app_settings() -> Result<AppSettings, String> {
+    let connection = open_database()?;
+    load_app_settings(&connection)
+}
+
+#[tauri::command]
+fn update_translation_model(translation_model: String) -> Result<AppSettings, String> {
+    let connection = open_database()?;
+    let translation_model = validate_translation_model(&translation_model)?;
+
+    connection
+        .execute(
+            "
+            INSERT INTO app_settings (key, value)
+            VALUES ('translation_model', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            ",
+            params![translation_model],
+        )
+        .map_err(|error| format!("Failed to update translation model: {error}"))?;
+
+    load_app_settings(&connection)
+}
+
+#[tauri::command]
 fn install_worker_schedule(
     start_time: String,
     end_time: String,
@@ -970,6 +1062,8 @@ pub fn run() {
             add_project_inputs,
             retry_document,
             export_project,
+            get_app_settings,
+            update_translation_model,
             get_worker_schedule_status,
             install_worker_schedule,
             uninstall_worker_schedule
