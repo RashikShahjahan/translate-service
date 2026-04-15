@@ -1,6 +1,6 @@
 # Translate Service
 
-Translate Service stores source documents in SQLite, runs OCR for image inputs, translates queued text with MLX models, and can export completed documents as `.docx`. The repo also includes a Tauri desktop app for managing projects, imports, exports, translation settings, and the macOS worker schedule.
+Translate Service stores source documents in SQLite, runs OCR for image inputs, translates queued text and `.docx` inputs with MLX models, and can export completed documents as `.docx`. The repo also includes a Tauri desktop app for managing projects, imports, exports, translation settings, and the macOS worker schedule.
 
 ## Project layout
 
@@ -40,7 +40,7 @@ Install dependencies:
 Notes:
 
 - `GEMINI_API_KEY` is required only when you want OCR for image inputs.
-- Text inputs do not require OCR and are queued directly for translation.
+- Text and `.docx` inputs do not require OCR and are queued directly for translation.
 - New projects default to `SOURCE_LANG_CODE` and `TARGET_LANG_CODE`, but each project can be updated later from the Tauri app.
 
 # Commands
@@ -50,8 +50,8 @@ Use `uv run ...` if you are working from the project environment.
 ## Queue work
 
 - `uv run python src/main.py add-tasks <project_name> <input...>`: Add one or more files or directories to a project and queue supported files for OCR/translation.
-- Supported inputs are files whose MIME type resolves to `image/*` or `text/*`. Directory inputs are scanned recursively.
-- Example: `uv run python src/main.py add-tasks book scans/page-001.jpg chapters/`
+- Supported inputs are files whose MIME type resolves to `image/*`, `text/*`, or DOCX (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`). Directory inputs are scanned recursively.
+- Example: `uv run python src/main.py add-tasks book scans/page-001.jpg chapters/ manuscript.docx`
 
 ## Inspect queued and stored data
 
@@ -158,7 +158,7 @@ Build a production app bundle:
 Current app capabilities:
 
 - Create named or untitled projects
-- Import files or folders into a project
+- Import files or folders into a project, including `.docx` sources
 - Browse document status, retry failed items, and inspect OCR/translation output
 - Export completed project documents as `.docx`
 - Update project source and target languages

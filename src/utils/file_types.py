@@ -1,6 +1,11 @@
 from mimetypes import guess_type
 
 
+DOCX_MIME_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
+
 def detect_source_type(source_path: str) -> str:
     mime_type, _ = guess_type(source_path)
 
@@ -9,6 +14,9 @@ def detect_source_type(source_path: str) -> str:
             return "image"
 
         if mime_type.startswith("text/"):
+            return "text"
+
+        if mime_type == DOCX_MIME_TYPE:
             return "text"
 
 

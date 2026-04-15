@@ -7,18 +7,31 @@ from utils.storage import get_projects
 from utils.storage import get_tasks
 from utils.storage import retry_document
 from utils.storage import upsert_document, upsert_project
-from utils.docx import write_document_docx
-from utils.file_types import detect_mime_type, detect_source_type
+from utils.docx import extract_text_from_docx, write_document_docx
+from utils.file_types import DOCX_MIME_TYPE, detect_mime_type, detect_source_type
 from utils.logging_utils import configure_logging, get_logger
 
 
 logger = get_logger(__name__)
 
 
+def read_source_text(
+    input_path: Path, mime_type: str | None, source_type: str
+) -> str | None:
+    if source_type != "text":
+        return None
+
+    if mime_type == DOCX_MIME_TYPE:
+        return extract_text_from_docx(input_path)
+
+    return input_path.read_text(encoding="utf-8")
+
+
 def prepare_task(
     input_path: Path, project_id: int, project_name: str, source_name: str
 ) -> bool:
     input_type = detect_source_type(input_path)
+    mime_type = detect_mime_type(input_path)
     if input_type not in {"image", "text"}:
         logger.info("Skipping unsupported input file: %s", input_path)
         return False
@@ -28,10 +41,8 @@ def prepare_task(
         source_name=source_name,
         source_type=input_type,
         source_bytes=input_path.read_bytes(),
-        source_text=(
-            input_path.read_text(encoding="utf-8") if input_type == "text" else None
-        ),
-        mime_type=detect_mime_type(input_path),
+        source_text=read_source_text(input_path, mime_type, input_type),
+        mime_type=mime_type,
     )
     logger.info(
         "Queued %s document '%s' for project '%s'",
