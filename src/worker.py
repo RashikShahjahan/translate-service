@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
     complete_translation,
+    get_translation_batch_size,
+    get_translation_chunk_size,
     lease_document_for_ocr,
     lease_documents_for_translation,
     recover_stale_leases,
@@ -18,7 +20,6 @@ load_dotenv()
 logger = get_logger(__name__)
 
 IDLE_SLEEP_SECONDS = float(getenv("IDLE_SLEEP_SECONDS", "60"))
-TRANSLATION_BATCH_SIZE = int(getenv("TRANSLATION_BATCH_SIZE", "4"))
 LEASE_TIMEOUT_SECONDS = float(getenv("LEASE_TIMEOUT_SECONDS", "900"))
 TRANSLATION_IDLE_UNLOAD_SECONDS = float(getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15"))
 RETRY_BACKOFF_BASE_SECONDS = float(getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
@@ -31,7 +32,7 @@ def retry_backoff_seconds(retry_count: int) -> float:
     return min(delay_seconds, RETRY_BACKOFF_MAX_SECONDS)
 
 
-def start_translation(translation_batch_size: int):
+def start_translation(translation_batch_size: int, translation_chunk_size: int):
     leased_items = lease_documents_for_translation(translation_batch_size)
     input_texts = [str(item["input_text"]).strip() for item in leased_items]
     if not input_texts:
@@ -45,7 +46,7 @@ def start_translation(translation_batch_size: int):
     )
 
     try:
-        from utils.translation import translate_batch
+        from utils.translation import translate_document_text
 
         groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
         completed_translations: list[tuple[int, str]] = []
@@ -58,17 +59,17 @@ def start_translation(translation_batch_size: int):
             ].append(leased)
 
         for (source_language, target_language), group_items in groups.items():
-            group_input_texts = [
-                str(item["input_text"]).strip() for item in group_items
-            ]
-            results = translate_batch(
-                group_input_texts,
-                source_lang_code=source_language,
-                target_lang_code=target_language,
-            )
-            for leased, translated_text in zip(group_items, results):
+            for leased in group_items:
                 completed_translations.append(
-                    (int(leased["id"]), translated_text.strip())
+                    (
+                        int(leased["id"]),
+                        translate_document_text(
+                            str(leased["input_text"]).strip(),
+                            chunk_size=translation_chunk_size,
+                            source_lang_code=source_language,
+                            target_lang_code=target_language,
+                        ).strip(),
+                    )
                 )
 
         for document_id, translated_text in completed_translations:
@@ -123,13 +124,17 @@ def start_ocr():
     return True
 
 
-def process_once(translation_batch_size: int) -> tuple[bool, bool]:
+def process_once(
+    translation_batch_size: int, translation_chunk_size: int
+) -> tuple[bool, bool]:
     recovered_count = recover_stale_leases(LEASE_TIMEOUT_SECONDS)
     if recovered_count:
         logger.info("Recovered %d stale lease(s)", recovered_count)
 
     processed_ocr = start_ocr()
-    processed_translation = start_translation(translation_batch_size)
+    processed_translation = start_translation(
+        translation_batch_size, translation_chunk_size
+    )
     return bool(
         recovered_count
     ) or processed_ocr or processed_translation, processed_translation
@@ -145,7 +150,10 @@ if __name__ == "__main__":
 
     try:
         while True:
-            processed_work, processed_translation = process_once(TRANSLATION_BATCH_SIZE)
+            processed_work, processed_translation = process_once(
+                get_translation_batch_size(),
+                get_translation_chunk_size(),
+            )
             if processed_translation:
                 last_translation_at = monotonic()
             else:
