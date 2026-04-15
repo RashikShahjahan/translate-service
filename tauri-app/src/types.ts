@@ -60,4 +60,5 @@ export type WorkerScheduleStatus = {
 
 export type AppSettings = {
   translationModel: string;
+  translationBatchSize: number;
 };

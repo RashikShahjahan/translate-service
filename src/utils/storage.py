@@ -21,6 +21,10 @@ DB_PATH = Path("data/translate_service.sqlite3")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 DEFAULT_SOURCE_LANGUAGE = getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
 DEFAULT_TARGET_LANGUAGE = getenv("TARGET_LANG_CODE", "en").strip() or "en"
+DEFAULT_TRANSLATION_BATCH_SIZE = max(
+    int(getenv("TRANSLATION_BATCH_SIZE", "4") or "4"),
+    1,
+)
 
 STATUS_PENDING_OCR = "pending_ocr"
 STATUS_PROCESSING_OCR = "processing_ocr"
@@ -83,6 +87,13 @@ class Document(Base):
     project: Mapped[Project] = relationship(back_populates="documents")
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 engine = create_engine(DATABASE_URL)
 
@@ -127,10 +138,44 @@ def ensure_db() -> None:
             {"target_language": DEFAULT_TARGET_LANGUAGE},
         )
 
+    with Session(engine) as session:
+        app_setting = session.get(AppSetting, "translation_batch_size")
+        if app_setting is None:
+            session.add(
+                AppSetting(
+                    key="translation_batch_size",
+                    value=str(DEFAULT_TRANSLATION_BATCH_SIZE),
+                )
+            )
+            session.commit()
+        elif not app_setting.value.strip():
+            app_setting.value = str(DEFAULT_TRANSLATION_BATCH_SIZE)
+            session.commit()
+
 
 def get_session() -> Session:
     ensure_db()
     return Session(engine)
+
+
+def get_app_setting(key: str) -> str | None:
+    with get_session() as session:
+        app_setting = session.get(AppSetting, key)
+        return app_setting.value if app_setting is not None else None
+
+
+def get_translation_batch_size() -> int:
+    ensure_db()
+    value = get_app_setting("translation_batch_size")
+    if value is None:
+        return DEFAULT_TRANSLATION_BATCH_SIZE
+
+    try:
+        parsed_value = int(str(value).strip())
+    except ValueError:
+        return DEFAULT_TRANSLATION_BATCH_SIZE
+
+    return parsed_value if parsed_value > 0 else DEFAULT_TRANSLATION_BATCH_SIZE
 
 
 def upsert_project(name: str) -> int:

@@ -1,9 +1,12 @@
 type TranslationSettingsCardProps = {
   translationModel: string;
+  translationBatchSize: string;
   loadingTranslationModel: boolean;
   savingTranslationModel: boolean;
   onTranslationModelChange: (value: string) => void;
+  onTranslationBatchSizeChange: (value: string) => void;
   onSaveTranslationModel: () => void;
+  onSaveTranslationBatchSize: () => void;
 };
 
 const RECOMMENDED_TRANSLATION_MODELS = [
@@ -14,6 +17,9 @@ const RECOMMENDED_TRANSLATION_MODELS = [
 
 function TranslationSettingsCard(props: TranslationSettingsCardProps) {
   const disabled = props.loadingTranslationModel || props.savingTranslationModel;
+  const normalizedBatchSize = props.translationBatchSize.trim();
+  const parsedBatchSize = Number.parseInt(normalizedBatchSize, 10);
+  const batchSizeInvalid = !normalizedBatchSize || !Number.isInteger(parsedBatchSize) || parsedBatchSize <= 0;
 
   return (
     <section className="rounded-2xl border border-[#8497b01a] bg-[var(--app-panel-soft)] p-4 backdrop-blur-[10px] sm:p-5">
@@ -34,7 +40,7 @@ function TranslationSettingsCard(props: TranslationSettingsCardProps) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="mt-4 grid gap-4">
         <div>
           <label className="block font-[IBM_Plex_Mono] text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
             Model name
@@ -62,6 +68,38 @@ function TranslationSettingsCard(props: TranslationSettingsCardProps) {
           >
             {props.savingTranslationModel ? "Saving..." : "Save model"}
           </button>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_auto] lg:items-end">
+          <div>
+            <label className="block font-[IBM_Plex_Mono] text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--app-muted)]">
+              Batch size
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={props.translationBatchSize}
+              disabled={disabled}
+              onChange={(event) => props.onTranslationBatchSizeChange(event.currentTarget.value)}
+              className="mt-2 min-w-0 w-full rounded-xl border border-[var(--app-border)] bg-white/6 px-4 py-3 text-base text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-border-strong)] focus:ring-4 focus:ring-sky-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <p className="mt-2 text-sm text-[var(--app-muted)]">
+              Number of queued documents the worker translates in one batch.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            <button
+              type="button"
+              onClick={props.onSaveTranslationBatchSize}
+              disabled={disabled || batchSizeInvalid}
+              className="rounded-full bg-[linear-gradient(135deg,#67b7ff,#468cf3)] px-4 py-2 text-sm font-semibold text-[#04101d] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {props.savingTranslationModel ? "Saving..." : "Save batch size"}
+            </button>
+          </div>
         </div>
       </div>
     </section>

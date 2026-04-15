@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from utils.storage import (
     complete_ocr,
     complete_translation,
+    get_translation_batch_size,
     lease_document_for_ocr,
     lease_documents_for_translation,
     recover_stale_leases,
@@ -18,7 +19,6 @@ load_dotenv()
 logger = get_logger(__name__)
 
 IDLE_SLEEP_SECONDS = float(getenv("IDLE_SLEEP_SECONDS", "60"))
-TRANSLATION_BATCH_SIZE = int(getenv("TRANSLATION_BATCH_SIZE", "4"))
 LEASE_TIMEOUT_SECONDS = float(getenv("LEASE_TIMEOUT_SECONDS", "900"))
 TRANSLATION_IDLE_UNLOAD_SECONDS = float(getenv("TRANSLATION_IDLE_UNLOAD_SECONDS", "15"))
 RETRY_BACKOFF_BASE_SECONDS = float(getenv("RETRY_BACKOFF_BASE_SECONDS", "30"))
@@ -145,7 +145,9 @@ if __name__ == "__main__":
 
     try:
         while True:
-            processed_work, processed_translation = process_once(TRANSLATION_BATCH_SIZE)
+            processed_work, processed_translation = process_once(
+                get_translation_batch_size()
+            )
             if processed_translation:
                 last_translation_at = monotonic()
             else:
