@@ -25,6 +25,10 @@ DEFAULT_TRANSLATION_BATCH_SIZE = max(
     int(getenv("TRANSLATION_BATCH_SIZE", "4") or "4"),
     1,
 )
+DEFAULT_TRANSLATION_CHUNK_SIZE = max(
+    int(getenv("TRANSLATION_CHUNK_SIZE", "2000") or "2000"),
+    1,
+)
 
 STATUS_PENDING_OCR = "pending_ocr"
 STATUS_PROCESSING_OCR = "processing_ocr"
@@ -152,6 +156,21 @@ def ensure_db() -> None:
             app_setting.value = str(DEFAULT_TRANSLATION_BATCH_SIZE)
             session.commit()
 
+        translation_chunk_size_setting = session.get(
+            AppSetting, "translation_chunk_size"
+        )
+        if translation_chunk_size_setting is None:
+            session.add(
+                AppSetting(
+                    key="translation_chunk_size",
+                    value=str(DEFAULT_TRANSLATION_CHUNK_SIZE),
+                )
+            )
+            session.commit()
+        elif not translation_chunk_size_setting.value.strip():
+            translation_chunk_size_setting.value = str(DEFAULT_TRANSLATION_CHUNK_SIZE)
+            session.commit()
+
 
 def get_session() -> Session:
     ensure_db()
@@ -176,6 +195,20 @@ def get_translation_batch_size() -> int:
         return DEFAULT_TRANSLATION_BATCH_SIZE
 
     return parsed_value if parsed_value > 0 else DEFAULT_TRANSLATION_BATCH_SIZE
+
+
+def get_translation_chunk_size() -> int:
+    ensure_db()
+    value = get_app_setting("translation_chunk_size")
+    if value is None:
+        return DEFAULT_TRANSLATION_CHUNK_SIZE
+
+    try:
+        parsed_value = int(str(value).strip())
+    except ValueError:
+        return DEFAULT_TRANSLATION_CHUNK_SIZE
+
+    return parsed_value if parsed_value > 0 else DEFAULT_TRANSLATION_CHUNK_SIZE
 
 
 def upsert_project(name: str) -> int:

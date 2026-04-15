@@ -924,6 +924,14 @@ wheels = [
 ]
 
 [[package]]
+name = "pysbd"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/0a/c99fb7d7e176f8b176ef19704a32e6a9c6aafdf19ef75a187f701fc15801/pysbd-0.3.4-py3-none-any.whl", hash = "sha256:cd838939b7b0b185fcf86b0baf6636667dfb6e474743beeff878e9f42e022953", size = 71082, upload-time = "2021-02-11T16:36:33.351Z" },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -1265,6 +1273,7 @@ dependencies = [
     { name = "mlx-lm" },
     { name = "persist-queue" },
     { name = "psutil" },
+    { name = "pysbd" },
     { name = "python-docx" },
     { name = "sqlalchemy" },
     { name = "tiktoken" },
@@ -1280,6 +1289,7 @@ requires-dist = [
     { name = "mlx-lm", specifier = ">=0.31.1" },
     { name = "persist-queue", specifier = ">=1.1.0" },
     { name = "psutil", specifier = ">=7.0.0" },
+    { name = "pysbd", specifier = ">=0.3.4" },
     { name = "python-docx", specifier = ">=1.2.0" },
     { name = "sqlalchemy", specifier = ">=2.0.39" },
     { name = "tiktoken", specifier = ">=0.11.0" },

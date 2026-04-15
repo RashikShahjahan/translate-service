@@ -21,6 +21,7 @@ const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
 const DEFAULT_WORKER_ACTIVE_END_TIME: &str = "08:00";
 const DEFAULT_TRANSLATION_MODEL: &str = "mlx-community/translategemma-12b-it-4bit";
 const DEFAULT_TRANSLATION_BATCH_SIZE: i64 = 4;
+const DEFAULT_TRANSLATION_CHUNK_SIZE: i64 = 2000;
 const DEFAULT_SOURCE_LANGUAGE: &str = "bn";
 const DEFAULT_TARGET_LANGUAGE: &str = "en";
 const SUPPORTED_TRANSLATION_MODELS: [&str; 3] = [
@@ -104,6 +105,7 @@ struct WorkerScheduleStatus {
 struct AppSettings {
     translation_model: String,
     translation_batch_size: i64,
+    translation_chunk_size: i64,
 }
 
 fn default_language_code(env_name: &str, fallback: &str) -> String {
@@ -166,6 +168,22 @@ fn default_translation_batch_size() -> i64 {
 fn validate_translation_batch_size(value: i64) -> Result<i64, String> {
     if value <= 0 {
         return Err("Translation batch size must be greater than 0".to_string());
+    }
+
+    Ok(value)
+}
+
+fn default_translation_chunk_size() -> i64 {
+    env::var("TRANSLATION_CHUNK_SIZE")
+        .ok()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_TRANSLATION_CHUNK_SIZE)
+}
+
+fn validate_translation_chunk_size(value: i64) -> Result<i64, String> {
+    if value <= 0 {
+        return Err("Translation chunk size must be greater than 0".to_string());
     }
 
     Ok(value)
@@ -340,6 +358,7 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
     let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
     let default_translation_model = default_translation_model();
     let default_translation_batch_size = default_translation_batch_size();
+    let default_translation_chunk_size = default_translation_chunk_size();
 
     connection
         .execute_batch(
@@ -438,6 +457,18 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| format!("Failed to backfill translation batch size: {error}"))?;
 
+    connection
+        .execute(
+            "
+            INSERT INTO app_settings (key, value)
+            VALUES ('translation_chunk_size', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            WHERE TRIM(app_settings.value) = ''
+            ",
+            params![default_translation_chunk_size.to_string()],
+        )
+        .map_err(|error| format!("Failed to backfill translation chunk size: {error}"))?;
+
     Ok(())
 }
 
@@ -464,10 +495,22 @@ fn load_app_settings(connection: &Connection) -> Result<AppSettings, String> {
         .and_then(|value| value.trim().parse::<i64>().ok())
         .filter(|value| *value > 0)
         .unwrap_or_else(default_translation_batch_size);
+    let translation_chunk_size = connection
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = 'translation_chunk_size' LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("Failed to load app settings: {error}"))?
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or_else(default_translation_chunk_size);
 
     Ok(AppSettings {
         translation_model,
         translation_batch_size,
+        translation_chunk_size,
     })
 }
 
@@ -1043,6 +1086,25 @@ fn update_translation_batch_size(translation_batch_size: i64) -> Result<AppSetti
 }
 
 #[tauri::command]
+fn update_translation_chunk_size(translation_chunk_size: i64) -> Result<AppSettings, String> {
+    let connection = open_database()?;
+    let translation_chunk_size = validate_translation_chunk_size(translation_chunk_size)?;
+
+    connection
+        .execute(
+            "
+            INSERT INTO app_settings (key, value)
+            VALUES ('translation_chunk_size', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            ",
+            params![translation_chunk_size.to_string()],
+        )
+        .map_err(|error| format!("Failed to update translation chunk size: {error}"))?;
+
+    load_app_settings(&connection)
+}
+
+#[tauri::command]
 fn install_worker_schedule(
     start_time: String,
     end_time: String,
@@ -1129,6 +1191,7 @@ pub fn run() {
             get_app_settings,
             update_translation_model,
             update_translation_batch_size,
+            update_translation_chunk_size,
             get_worker_schedule_status,
             install_worker_schedule,
             uninstall_worker_schedule

@@ -210,6 +210,7 @@ function App() {
   const [workerSchedule, setWorkerSchedule] = useState<WorkerScheduleStatus | null>(null);
   const [translationModelInput, setTranslationModelInput] = useState("");
   const [translationBatchSizeInput, setTranslationBatchSizeInput] = useState("");
+  const [translationChunkSizeInput, setTranslationChunkSizeInput] = useState("");
   const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
   const [scheduleEndTime, setScheduleEndTime] = useState("08:00");
   const [loadingTranslationModel, setLoadingTranslationModel] = useState(true);
@@ -431,6 +432,7 @@ function App() {
       const nextSettings = await invoke<AppSettings>("get_app_settings");
       setTranslationModelInput(nextSettings.translationModel);
       setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
+      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
     } catch (error) {
       setActionError(messageFromError(error));
     } finally {
@@ -475,7 +477,34 @@ function App() {
       });
       setTranslationModelInput(nextSettings.translationModel);
       setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
+      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
       setActionMessage(`Translation batch size set to ${nextSettings.translationBatchSize}.`);
+    } catch (error) {
+      setActionError(messageFromError(error));
+    } finally {
+      setSavingTranslationModel(false);
+    }
+  }
+
+  async function saveTranslationChunkSize() {
+    const parsedChunkSize = Number.parseInt(translationChunkSizeInput.trim(), 10);
+    if (!Number.isInteger(parsedChunkSize) || parsedChunkSize <= 0) {
+      setActionError("Translation chunk size must be a positive integer.");
+      return;
+    }
+
+    setSavingTranslationModel(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const nextSettings = await invoke<AppSettings>("update_translation_chunk_size", {
+        translationChunkSize: parsedChunkSize,
+      });
+      setTranslationModelInput(nextSettings.translationModel);
+      setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
+      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
+      setActionMessage(`Translation chunk size set to ${nextSettings.translationChunkSize}.`);
     } catch (error) {
       setActionError(messageFromError(error));
     } finally {
@@ -929,12 +958,15 @@ function App() {
                     <TranslationSettingsCard
                       translationModel={translationModelInput}
                       translationBatchSize={translationBatchSizeInput}
+                      translationChunkSize={translationChunkSizeInput}
                       loadingTranslationModel={loadingTranslationModel}
                       savingTranslationModel={savingTranslationModel}
                       onTranslationModelChange={setTranslationModelInput}
                       onTranslationBatchSizeChange={setTranslationBatchSizeInput}
+                      onTranslationChunkSizeChange={setTranslationChunkSizeInput}
                       onSaveTranslationModel={() => void saveTranslationModel()}
                       onSaveTranslationBatchSize={() => void saveTranslationBatchSize()}
+                      onSaveTranslationChunkSize={() => void saveTranslationChunkSize()}
                     />
                     <WorkerScheduleCard
                       workerSchedule={workerSchedule}
