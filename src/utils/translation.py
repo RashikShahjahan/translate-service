@@ -1,8 +1,8 @@
 from gc import collect
-from os import getenv
 
 from dotenv import load_dotenv
 from pysbd import Segmenter
+from utils.shared_config import DEFAULTS, env_language_code, env_text
 from utils.logging_utils import get_logger
 
 
@@ -11,16 +11,12 @@ load_dotenv()
 logger = get_logger(__name__)
 _SENTENCE_SEGMENTER = None
 
-TRANSLATION_MODEL = getenv(
-    "TRANSLATION_MODEL",
-    "mlx-community/translategemma-12b-it-4bit",
+TRANSLATION_MODEL = env_text("TRANSLATION_MODEL", DEFAULTS.translation_model)
+DRAFT_TRANSLATION_MODEL = env_text(
+    "DRAFT_TRANSLATION_MODEL", DEFAULTS.draft_translation_model
 )
-DRAFT_TRANSLATION_MODEL = getenv(
-    "DRAFT_TRANSLATION_MODEL",
-    "mlx-community/translategemma-4b-it-4bit",
-)
-SOURCE_LANG_CODE = getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
-TARGET_LANG_CODE = getenv("TARGET_LANG_CODE", "en").strip() or "en"
+SOURCE_LANG_CODE = env_language_code("SOURCE_LANG_CODE", DEFAULTS.source_language)
+TARGET_LANG_CODE = env_language_code("TARGET_LANG_CODE", DEFAULTS.target_language)
 _MODEL = None
 _TOKENIZER = None
 _DRAFT_MODEL = None

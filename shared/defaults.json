@@ -1,0 +1,13 @@
+{
+  "source_language": "bn",
+  "target_language": "en",
+  "translation_model": "mlx-community/translategemma-12b-it-4bit",
+  "draft_translation_model": "mlx-community/translategemma-4b-it-4bit",
+  "translation_batch_size": 4,
+  "translation_chunk_size": 2000,
+  "supported_translation_models": [
+    "mlx-community/translategemma-12b-it-4bit",
+    "mlx-community/translategemma-4b-it-4bit",
+    "mlx-community/translategemma-27b-it-4bit"
+  ]
+}

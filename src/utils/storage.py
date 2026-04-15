@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from os import getenv
 from pathlib import Path
 
 from sqlalchemy import (
@@ -15,19 +14,23 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 from sqlalchemy import ForeignKey, UniqueConstraint
+from utils.shared_config import DEFAULTS, env_language_code, env_positive_int
 
 
 DB_PATH = Path("data/translate_service.sqlite3")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
-DEFAULT_SOURCE_LANGUAGE = getenv("SOURCE_LANG_CODE", "bn").strip() or "bn"
-DEFAULT_TARGET_LANGUAGE = getenv("TARGET_LANG_CODE", "en").strip() or "en"
-DEFAULT_TRANSLATION_BATCH_SIZE = max(
-    int(getenv("TRANSLATION_BATCH_SIZE", "4") or "4"),
-    1,
+SCHEMA_PATH = Path(__file__).resolve().parents[2] / "shared" / "schema.sql"
+DEFAULT_SOURCE_LANGUAGE = env_language_code(
+    "SOURCE_LANG_CODE", DEFAULTS.source_language
 )
-DEFAULT_TRANSLATION_CHUNK_SIZE = max(
-    int(getenv("TRANSLATION_CHUNK_SIZE", "2000") or "2000"),
-    1,
+DEFAULT_TARGET_LANGUAGE = env_language_code(
+    "TARGET_LANG_CODE", DEFAULTS.target_language
+)
+DEFAULT_TRANSLATION_BATCH_SIZE = env_positive_int(
+    "TRANSLATION_BATCH_SIZE", DEFAULTS.translation_batch_size
+)
+DEFAULT_TRANSLATION_CHUNK_SIZE = env_positive_int(
+    "TRANSLATION_CHUNK_SIZE", DEFAULTS.translation_chunk_size
 )
 
 STATUS_PENDING_OCR = "pending_ocr"
@@ -102,9 +105,25 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 engine = create_engine(DATABASE_URL)
 
 
+def load_schema_sql() -> str:
+    return SCHEMA_PATH.read_text(encoding="utf-8")
+
+
+def backfill_app_setting(session: Session, key: str, value: str) -> None:
+    app_setting = session.get(AppSetting, key)
+    if app_setting is None:
+        session.add(AppSetting(key=key, value=value))
+        session.commit()
+        return
+
+    if not app_setting.value.strip():
+        app_setting.value = value
+        session.commit()
+
+
 def ensure_db() -> None:
-    Base.metadata.create_all(engine)
     with engine.begin() as connection:
+        connection.connection.executescript(load_schema_sql())
         existing_columns = {
             row[1] for row in connection.execute(text("PRAGMA table_info(projects)"))
         }
@@ -143,33 +162,12 @@ def ensure_db() -> None:
         )
 
     with Session(engine) as session:
-        app_setting = session.get(AppSetting, "translation_batch_size")
-        if app_setting is None:
-            session.add(
-                AppSetting(
-                    key="translation_batch_size",
-                    value=str(DEFAULT_TRANSLATION_BATCH_SIZE),
-                )
-            )
-            session.commit()
-        elif not app_setting.value.strip():
-            app_setting.value = str(DEFAULT_TRANSLATION_BATCH_SIZE)
-            session.commit()
-
-        translation_chunk_size_setting = session.get(
-            AppSetting, "translation_chunk_size"
+        backfill_app_setting(
+            session, "translation_batch_size", str(DEFAULT_TRANSLATION_BATCH_SIZE)
         )
-        if translation_chunk_size_setting is None:
-            session.add(
-                AppSetting(
-                    key="translation_chunk_size",
-                    value=str(DEFAULT_TRANSLATION_CHUNK_SIZE),
-                )
-            )
-            session.commit()
-        elif not translation_chunk_size_setting.value.strip():
-            translation_chunk_size_setting.value = str(DEFAULT_TRANSLATION_CHUNK_SIZE)
-            session.commit()
+        backfill_app_setting(
+            session, "translation_chunk_size", str(DEFAULT_TRANSLATION_CHUNK_SIZE)
+        )
 
 
 def get_session() -> Session:

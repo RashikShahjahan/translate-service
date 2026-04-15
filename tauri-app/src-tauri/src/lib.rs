@@ -2,9 +2,10 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager, Runtime};
 
@@ -19,16 +20,18 @@ const UNTITLED_PROJECT_NAME: &str = "Untitled Project";
 const WORKER_LABEL: &str = "local.translate-service.worker";
 const DEFAULT_WORKER_ACTIVE_START_TIME: &str = "00:00";
 const DEFAULT_WORKER_ACTIVE_END_TIME: &str = "08:00";
-const DEFAULT_TRANSLATION_MODEL: &str = "mlx-community/translategemma-12b-it-4bit";
-const DEFAULT_TRANSLATION_BATCH_SIZE: i64 = 4;
-const DEFAULT_TRANSLATION_CHUNK_SIZE: i64 = 2000;
-const DEFAULT_SOURCE_LANGUAGE: &str = "bn";
-const DEFAULT_TARGET_LANGUAGE: &str = "en";
-const SUPPORTED_TRANSLATION_MODELS: [&str; 3] = [
-    "mlx-community/translategemma-12b-it-4bit",
-    "mlx-community/translategemma-4b-it-4bit",
-    "mlx-community/translategemma-27b-it-4bit",
-];
+
+static SHARED_DEFAULTS: OnceLock<Result<SharedDefaults, String>> = OnceLock::new();
+
+#[derive(Clone, Deserialize)]
+struct SharedDefaults {
+    source_language: String,
+    target_language: String,
+    translation_model: String,
+    translation_batch_size: i64,
+    translation_chunk_size: i64,
+    supported_translation_models: Vec<String>,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,6 +126,10 @@ fn default_language_code(env_name: &str, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
+fn default_language_code_from_shared_defaults(env_name: &str, fallback: fn(&SharedDefaults) -> &str) -> Result<String, String> {
+    Ok(default_language_code(env_name, fallback(shared_defaults()?)))
+}
+
 fn validate_language_code(value: &str, label: &str) -> Result<String, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -137,11 +144,14 @@ fn validate_language_code(value: &str, label: &str) -> Result<String, String> {
 }
 
 fn default_translation_model() -> String {
+    let fallback = shared_defaults()
+        .map(|defaults| defaults.translation_model.as_str())
+        .unwrap_or("mlx-community/translategemma-12b-it-4bit");
     env::var("TRANSLATION_MODEL")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_TRANSLATION_MODEL.to_string())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 fn validate_translation_model(value: &str) -> Result<String, String> {
@@ -150,7 +160,11 @@ fn validate_translation_model(value: &str) -> Result<String, String> {
         return Err("Translation model is required".to_string());
     }
 
-    if !SUPPORTED_TRANSLATION_MODELS.contains(&trimmed) {
+    if !shared_defaults()?
+        .supported_translation_models
+        .iter()
+        .any(|model| model == trimmed)
+    {
         return Err("Translation model is not supported".to_string());
     }
 
@@ -158,11 +172,14 @@ fn validate_translation_model(value: &str) -> Result<String, String> {
 }
 
 fn default_translation_batch_size() -> i64 {
+    let fallback = shared_defaults()
+        .map(|defaults| defaults.translation_batch_size)
+        .unwrap_or(4);
     env::var("TRANSLATION_BATCH_SIZE")
         .ok()
         .and_then(|value| value.trim().parse::<i64>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(DEFAULT_TRANSLATION_BATCH_SIZE)
+        .unwrap_or(fallback)
 }
 
 fn validate_translation_batch_size(value: i64) -> Result<i64, String> {
@@ -174,11 +191,27 @@ fn validate_translation_batch_size(value: i64) -> Result<i64, String> {
 }
 
 fn default_translation_chunk_size() -> i64 {
+    let fallback = shared_defaults()
+        .map(|defaults| defaults.translation_chunk_size)
+        .unwrap_or(2000);
     env::var("TRANSLATION_CHUNK_SIZE")
         .ok()
         .and_then(|value| value.trim().parse::<i64>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(DEFAULT_TRANSLATION_CHUNK_SIZE)
+        .unwrap_or(fallback)
+}
+
+fn shared_defaults() -> Result<&'static SharedDefaults, String> {
+    SHARED_DEFAULTS
+        .get_or_init(|| {
+            let defaults_path = repo_root()?.join("shared").join("defaults.json");
+            let contents = fs::read_to_string(&defaults_path)
+                .map_err(|error| format!("Failed to read shared defaults: {error}"))?;
+            serde_json::from_str::<SharedDefaults>(&contents)
+                .map_err(|error| format!("Failed to parse shared defaults: {error}"))
+        })
+        .as_ref()
+        .map_err(|error| error.clone())
 }
 
 fn validate_translation_chunk_size(value: i64) -> Result<i64, String> {
@@ -228,6 +261,26 @@ fn repo_root() -> Result<PathBuf, String> {
 
 fn database_path() -> Result<PathBuf, String> {
     Ok(repo_root()?.join("data").join("translate_service.sqlite3"))
+}
+
+fn load_shared_schema_sql() -> Result<String, String> {
+    fs::read_to_string(repo_root()?.join("shared").join("schema.sql"))
+        .map_err(|error| format!("Failed to read shared schema: {error}"))
+}
+
+fn ensure_app_setting(connection: &Connection, key: &str, value: &str) -> Result<(), String> {
+    connection
+        .execute(
+            "
+            INSERT INTO app_settings (key, value)
+            VALUES (?1, ?2)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            WHERE TRIM(app_settings.value) = ''
+            ",
+            params![key, value],
+        )
+        .map_err(|error| format!("Failed to backfill {key}: {error}"))?;
+    Ok(())
 }
 
 fn open_database() -> Result<Connection, String> {
@@ -354,49 +407,21 @@ fn worker_schedule_status() -> Result<WorkerScheduleStatus, String> {
 }
 
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
-    let default_source_language = default_language_code("SOURCE_LANG_CODE", DEFAULT_SOURCE_LANGUAGE);
-    let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
+    let default_source_language = default_language_code_from_shared_defaults(
+        "SOURCE_LANG_CODE",
+        |defaults| defaults.source_language.as_str(),
+    )?;
+    let default_target_language = default_language_code_from_shared_defaults(
+        "TARGET_LANG_CODE",
+        |defaults| defaults.target_language.as_str(),
+    )?;
     let default_translation_model = default_translation_model();
     let default_translation_batch_size = default_translation_batch_size();
     let default_translation_chunk_size = default_translation_chunk_size();
+    let schema_sql = load_shared_schema_sql()?;
 
     connection
-        .execute_batch(
-            "
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL,
-                source_language TEXT NOT NULL DEFAULT 'bn',
-                target_language TEXT NOT NULL DEFAULT 'en'
-            );
-
-            CREATE TABLE IF NOT EXISTS documents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-                source_name TEXT NOT NULL,
-                source_type TEXT NOT NULL,
-                source_bytes BLOB NOT NULL,
-                source_text TEXT,
-                mime_type TEXT,
-                ocr_text TEXT,
-                translated_text TEXT,
-                status TEXT NOT NULL,
-                error_message TEXT,
-                retry_count INTEGER NOT NULL DEFAULT 0,
-                next_attempt_at TEXT,
-                leased_at TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                UNIQUE(project_id, source_name)
-            );
-            ",
-        )
+        .execute_batch(&schema_sql)
         .map_err(|error| format!("Failed to ensure schema: {error}"))?;
 
     ensure_column_exists(
@@ -433,41 +458,17 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| format!("Failed to backfill target language: {error}"))?;
 
-    connection
-        .execute(
-            "
-            INSERT INTO app_settings (key, value)
-            VALUES ('translation_model', ?1)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            WHERE TRIM(app_settings.value) = ''
-            ",
-            params![default_translation_model],
-        )
-        .map_err(|error| format!("Failed to backfill translation model: {error}"))?;
-
-    connection
-        .execute(
-            "
-            INSERT INTO app_settings (key, value)
-            VALUES ('translation_batch_size', ?1)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            WHERE TRIM(app_settings.value) = ''
-            ",
-            params![default_translation_batch_size.to_string()],
-        )
-        .map_err(|error| format!("Failed to backfill translation batch size: {error}"))?;
-
-    connection
-        .execute(
-            "
-            INSERT INTO app_settings (key, value)
-            VALUES ('translation_chunk_size', ?1)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            WHERE TRIM(app_settings.value) = ''
-            ",
-            params![default_translation_chunk_size.to_string()],
-        )
-        .map_err(|error| format!("Failed to backfill translation chunk size: {error}"))?;
+    ensure_app_setting(connection, "translation_model", &default_translation_model)?;
+    ensure_app_setting(
+        connection,
+        "translation_batch_size",
+        &default_translation_batch_size.to_string(),
+    )?;
+    ensure_app_setting(
+        connection,
+        "translation_chunk_size",
+        &default_translation_chunk_size.to_string(),
+    )?;
 
     Ok(())
 }
@@ -593,8 +594,14 @@ fn project_summary_by_name(connection: &Connection, name: &str) -> Result<Projec
 }
 
 fn create_project_with_name(connection: &Connection, name: &str) -> Result<ProjectSummary, String> {
-    let default_source_language = default_language_code("SOURCE_LANG_CODE", DEFAULT_SOURCE_LANGUAGE);
-    let default_target_language = default_language_code("TARGET_LANG_CODE", DEFAULT_TARGET_LANGUAGE);
+    let default_source_language = default_language_code_from_shared_defaults(
+        "SOURCE_LANG_CODE",
+        |defaults| defaults.source_language.as_str(),
+    )?;
+    let default_target_language = default_language_code_from_shared_defaults(
+        "TARGET_LANG_CODE",
+        |defaults| defaults.target_language.as_str(),
+    )?;
 
     connection
         .execute(
