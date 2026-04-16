@@ -22,6 +22,52 @@ _TOKENIZER = None
 _DRAFT_MODEL = None
 
 
+def _generate_single_with_mlx(
+    model,
+    tokenizer,
+    prompt_tokens: list[int],
+    *,
+    max_tokens: int = 2048,
+    prefill_step_size: int = 2048,
+) -> str:
+    import mlx.core as mx
+    from mlx_lm.models.cache import make_prompt_cache
+
+    prompt = mx.array(prompt_tokens)
+    if prompt.size == 0:
+        raise ValueError("Prompt must contain at least one token")
+
+    prompt_cache = make_prompt_cache(model)
+    detokenizer = tokenizer.detokenizer
+
+    while prompt.size > 1:
+        n_to_process = min(prefill_step_size, prompt.size - 1)
+        model(prompt[:n_to_process][None], cache=prompt_cache)
+        mx.eval([cache.state for cache in prompt_cache])
+        prompt = prompt[n_to_process:]
+        mx.clear_cache()
+
+    current = prompt
+    for token_count in range(max_tokens):
+        logits = model(current[None], cache=prompt_cache)
+        logits = logits[:, -1, :]
+        next_token = mx.argmax(logits, axis=-1)
+        mx.eval(next_token)
+
+        token = next_token.item()
+        if token in tokenizer.eos_token_ids:
+            break
+
+        detokenizer.add_token(token)
+        current = next_token
+
+        if token_count % 256 == 0:
+            mx.clear_cache()
+
+    detokenizer.finalize()
+    return detokenizer.text
+
+
 def get_model_and_tokenizer():
     global _MODEL, _TOKENIZER
     if _MODEL is None or _TOKENIZER is None:
@@ -212,6 +258,21 @@ def translate(
     )
 
     return response
+
+
+def translate_custom(
+    text: str,
+    *,
+    source_lang_code: str | None = None,
+    target_lang_code: str | None = None,
+) -> str:
+    model, tokenizer = get_model_and_tokenizer()
+    prompt = prepare_prompt(
+        text,
+        source_lang_code=source_lang_code,
+        target_lang_code=target_lang_code,
+    )
+    return _generate_single_with_mlx(model, tokenizer, prompt, max_tokens=2048)
 
 
 def translate_speculative_decoding(
