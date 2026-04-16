@@ -1,4 +1,4 @@
-import { StatusBadge, formatTimestamp } from "./app-shared";
+import { StatusBadge, canRetryDocument, formatTimestamp } from "./app-shared";
 import type { DocumentRow } from "../types";
 import ImportMenuButton from "./ImportMenuButton";
 
@@ -85,7 +85,7 @@ function DocumentsTable(props: DocumentsTableProps) {
             <tbody>
               {props.documents.map((document) => {
                 const selected = document.id === props.selectedDocumentId;
-                const canRetry = Boolean(document.errorMessage) && !document.status.startsWith("processing_");
+                const canRetry = canRetryDocument(document);
                 const retrying = props.retryingDocumentId === document.id;
 
                 return (

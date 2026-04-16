@@ -16,6 +16,15 @@ function formatTimestamp(value: string | null | undefined) {
   }).format(date);
 }
 
+function parsePositiveInteger(value: string) {
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function canRetryDocument(document: { errorMessage: string | null; status: string }) {
+  return Boolean(document.errorMessage) && !document.status.startsWith("processing_");
+}
+
 const STATUS_STYLES: Record<string, string> = {
   pending_ocr: "border border-amber-400/20 bg-amber-400/12 text-amber-200",
   processing_ocr: "border border-orange-400/20 bg-orange-400/12 text-orange-200",
@@ -73,4 +82,4 @@ function TextPreviewSection(props: { label: string; value: string }) {
   );
 }
 
-export { StatCard, StatusBadge, TextPreviewSection, formatTimestamp };
+export { StatCard, StatusBadge, TextPreviewSection, canRetryDocument, formatTimestamp, parsePositiveInteger };

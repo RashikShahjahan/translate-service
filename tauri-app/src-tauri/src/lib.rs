@@ -171,34 +171,41 @@ fn validate_translation_model(value: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
+fn parse_positive_i64(value: &str) -> Option<i64> {
+    value.trim().parse::<i64>().ok().filter(|value| *value > 0)
+}
+
+fn default_positive_setting(env_name: &str, fallback: i64) -> i64 {
+    env::var(env_name)
+        .ok()
+        .and_then(|value| parse_positive_i64(&value))
+        .unwrap_or(fallback)
+}
+
+fn validate_positive_setting(value: i64, label: &str) -> Result<i64, String> {
+    if value <= 0 {
+        return Err(format!("{label} must be greater than 0"));
+    }
+
+    Ok(value)
+}
+
 fn default_translation_batch_size() -> i64 {
     let fallback = shared_defaults()
         .map(|defaults| defaults.translation_batch_size)
         .unwrap_or(4);
-    env::var("TRANSLATION_BATCH_SIZE")
-        .ok()
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(fallback)
+    default_positive_setting("TRANSLATION_BATCH_SIZE", fallback)
 }
 
 fn validate_translation_batch_size(value: i64) -> Result<i64, String> {
-    if value <= 0 {
-        return Err("Translation batch size must be greater than 0".to_string());
-    }
-
-    Ok(value)
+    validate_positive_setting(value, "Translation batch size")
 }
 
 fn default_translation_chunk_size() -> i64 {
     let fallback = shared_defaults()
         .map(|defaults| defaults.translation_chunk_size)
         .unwrap_or(2000);
-    env::var("TRANSLATION_CHUNK_SIZE")
-        .ok()
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(fallback)
+    default_positive_setting("TRANSLATION_CHUNK_SIZE", fallback)
 }
 
 fn shared_defaults() -> Result<&'static SharedDefaults, String> {
@@ -215,11 +222,20 @@ fn shared_defaults() -> Result<&'static SharedDefaults, String> {
 }
 
 fn validate_translation_chunk_size(value: i64) -> Result<i64, String> {
-    if value <= 0 {
-        return Err("Translation chunk size must be greater than 0".to_string());
-    }
+    validate_positive_setting(value, "Translation chunk size")
+}
 
-    Ok(value)
+fn load_positive_app_setting(connection: &Connection, key: &str, fallback: fn() -> i64) -> Result<i64, String> {
+    Ok(connection
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = ?1 LIMIT 1",
+            params![key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("Failed to load app settings: {error}"))?
+        .and_then(|value| parse_positive_i64(&value))
+        .unwrap_or_else(fallback))
 }
 
 fn ensure_column_exists(
@@ -485,28 +501,10 @@ fn load_app_settings(connection: &Connection) -> Result<AppSettings, String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(default_translation_model);
-    let translation_batch_size = connection
-        .query_row(
-            "SELECT value FROM app_settings WHERE key = 'translation_batch_size' LIMIT 1",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| format!("Failed to load app settings: {error}"))?
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or_else(default_translation_batch_size);
-    let translation_chunk_size = connection
-        .query_row(
-            "SELECT value FROM app_settings WHERE key = 'translation_chunk_size' LIMIT 1",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| format!("Failed to load app settings: {error}"))?
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or_else(default_translation_chunk_size);
+    let translation_batch_size =
+        load_positive_app_setting(connection, "translation_batch_size", default_translation_batch_size)?;
+    let translation_chunk_size =
+        load_positive_app_setting(connection, "translation_chunk_size", default_translation_chunk_size)?;
 
     Ok(AppSettings {
         translation_model,

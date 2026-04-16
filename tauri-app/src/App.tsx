@@ -8,6 +8,7 @@ import ProjectSidebar from "./components/ProjectSidebar";
 import TranslationSettingsCard from "./components/TranslationSettingsCard";
 import WorkspacePanel from "./components/WorkspacePanel";
 import WorkerScheduleCard from "./components/WorkerScheduleCard";
+import { canRetryDocument, parsePositiveInteger } from "./components/app-shared";
 import type {
   AppSettings,
   DocumentDetail,
@@ -39,10 +40,6 @@ function messageFromError(error: unknown) {
   }
 
   return "Something went wrong.";
-}
-
-function canRetryDocument(document: Pick<DocumentRow, "errorMessage" | "status"> | Pick<DocumentDetail, "errorMessage" | "status">) {
-  return Boolean(document.errorMessage) && !document.status.startsWith("processing_");
 }
 
 function readStoredString(key: string, fallback = "") {
@@ -86,6 +83,14 @@ async function selectFilePaths(options: {
 
 type IconProps = {
   children: ReactNode;
+};
+
+type TranslationNumericSetting = {
+  command: "update_translation_batch_size" | "update_translation_chunk_size";
+  field: "translationBatchSize" | "translationChunkSize";
+  label: string;
+  value: string;
+  successMessage: (settings: AppSettings) => string;
 };
 
 function ToolbarIcon(props: IconProps) {
@@ -430,9 +435,7 @@ function App() {
 
     try {
       const nextSettings = await invoke<AppSettings>("get_app_settings");
-      setTranslationModelInput(nextSettings.translationModel);
-      setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
-      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
+      applyTranslationSettings(nextSettings);
     } catch (error) {
       setActionError(messageFromError(error));
     } finally {
@@ -440,6 +443,12 @@ function App() {
         setLoadingTranslationModel(false);
       }
     }
+  }
+
+  function applyTranslationSettings(nextSettings: AppSettings) {
+    setTranslationModelInput(nextSettings.translationModel);
+    setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
+    setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
   }
 
   async function saveTranslationModel() {
@@ -451,7 +460,7 @@ function App() {
       const nextSettings = await invoke<AppSettings>("update_translation_model", {
         translationModel: translationModelInput,
       });
-      setTranslationModelInput(nextSettings.translationModel);
+      applyTranslationSettings(nextSettings);
       setActionMessage(`Translation model set to ${nextSettings.translationModel}.`);
     } catch (error) {
       setActionError(messageFromError(error));
@@ -460,10 +469,10 @@ function App() {
     }
   }
 
-  async function saveTranslationBatchSize() {
-    const parsedBatchSize = Number.parseInt(translationBatchSizeInput.trim(), 10);
-    if (!Number.isInteger(parsedBatchSize) || parsedBatchSize <= 0) {
-      setActionError("Translation batch size must be a positive integer.");
+  async function saveTranslationNumericSetting(setting: TranslationNumericSetting) {
+    const parsedValue = parsePositiveInteger(setting.value);
+    if (parsedValue === null) {
+      setActionError(`${setting.label} must be a positive integer.`);
       return;
     }
 
@@ -472,13 +481,11 @@ function App() {
     setActionMessage("");
 
     try {
-      const nextSettings = await invoke<AppSettings>("update_translation_batch_size", {
-        translationBatchSize: parsedBatchSize,
+      const nextSettings = await invoke<AppSettings>(setting.command, {
+        [setting.field]: parsedValue,
       });
-      setTranslationModelInput(nextSettings.translationModel);
-      setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
-      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
-      setActionMessage(`Translation batch size set to ${nextSettings.translationBatchSize}.`);
+      applyTranslationSettings(nextSettings);
+      setActionMessage(setting.successMessage(nextSettings));
     } catch (error) {
       setActionError(messageFromError(error));
     } finally {
@@ -486,30 +493,24 @@ function App() {
     }
   }
 
+  async function saveTranslationBatchSize() {
+    await saveTranslationNumericSetting({
+      command: "update_translation_batch_size",
+      field: "translationBatchSize",
+      label: "Translation batch size",
+      value: translationBatchSizeInput,
+      successMessage: (settings) => `Translation batch size set to ${settings.translationBatchSize}.`,
+    });
+  }
+
   async function saveTranslationChunkSize() {
-    const parsedChunkSize = Number.parseInt(translationChunkSizeInput.trim(), 10);
-    if (!Number.isInteger(parsedChunkSize) || parsedChunkSize <= 0) {
-      setActionError("Translation chunk size must be a positive integer.");
-      return;
-    }
-
-    setSavingTranslationModel(true);
-    setActionError("");
-    setActionMessage("");
-
-    try {
-      const nextSettings = await invoke<AppSettings>("update_translation_chunk_size", {
-        translationChunkSize: parsedChunkSize,
-      });
-      setTranslationModelInput(nextSettings.translationModel);
-      setTranslationBatchSizeInput(String(nextSettings.translationBatchSize));
-      setTranslationChunkSizeInput(String(nextSettings.translationChunkSize));
-      setActionMessage(`Translation chunk size set to ${nextSettings.translationChunkSize}.`);
-    } catch (error) {
-      setActionError(messageFromError(error));
-    } finally {
-      setSavingTranslationModel(false);
-    }
+    await saveTranslationNumericSetting({
+      command: "update_translation_chunk_size",
+      field: "translationChunkSize",
+      label: "Translation chunk size",
+      value: translationChunkSizeInput,
+      successMessage: (settings) => `Translation chunk size set to ${settings.translationChunkSize}.`,
+    });
   }
 
   async function refreshWorkerSchedule(silent = false) {

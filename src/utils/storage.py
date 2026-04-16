@@ -181,32 +181,30 @@ def get_app_setting(key: str) -> str | None:
         return app_setting.value if app_setting is not None else None
 
 
-def get_translation_batch_size() -> int:
+def get_positive_int_app_setting(key: str, default: int) -> int:
     ensure_db()
-    value = get_app_setting("translation_batch_size")
+    value = get_app_setting(key)
     if value is None:
-        return DEFAULT_TRANSLATION_BATCH_SIZE
+        return default
 
     try:
         parsed_value = int(str(value).strip())
     except ValueError:
-        return DEFAULT_TRANSLATION_BATCH_SIZE
+        return default
 
-    return parsed_value if parsed_value > 0 else DEFAULT_TRANSLATION_BATCH_SIZE
+    return parsed_value if parsed_value > 0 else default
+
+
+def get_translation_batch_size() -> int:
+    return get_positive_int_app_setting(
+        "translation_batch_size", DEFAULT_TRANSLATION_BATCH_SIZE
+    )
 
 
 def get_translation_chunk_size() -> int:
-    ensure_db()
-    value = get_app_setting("translation_chunk_size")
-    if value is None:
-        return DEFAULT_TRANSLATION_CHUNK_SIZE
-
-    try:
-        parsed_value = int(str(value).strip())
-    except ValueError:
-        return DEFAULT_TRANSLATION_CHUNK_SIZE
-
-    return parsed_value if parsed_value > 0 else DEFAULT_TRANSLATION_CHUNK_SIZE
+    return get_positive_int_app_setting(
+        "translation_chunk_size", DEFAULT_TRANSLATION_CHUNK_SIZE
+    )
 
 
 def upsert_project(name: str) -> int:
