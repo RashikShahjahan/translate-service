@@ -40,9 +40,7 @@ def mb(value):
 
 def load_passages() -> tuple[list[dict], int, int]:
     if not PASSAGES_PATH.exists():
-        raise ValueError(
-            f"Profiler passages JSON not found: {PASSAGES_PATH}"
-        )
+        raise ValueError(f"Profiler passages JSON not found: {PASSAGES_PATH}")
 
     payload = json.loads(PASSAGES_PATH.read_text())
     base_chunk_size = payload.get("base_chunk_size")
@@ -53,9 +51,7 @@ def load_passages() -> tuple[list[dict], int, int]:
         )
     passage_size = payload.get("passage_size")
     if not isinstance(passage_size, int) or passage_size <= 0:
-        raise ValueError(
-            f"{PASSAGES_PATH} has invalid passage_size={passage_size}"
-        )
+        raise ValueError(f"{PASSAGES_PATH} has invalid passage_size={passage_size}")
     if passage_size % base_chunk_size != 0:
         raise ValueError(
             f"{PASSAGES_PATH} has passage_size={passage_size}; expected a multiple of {base_chunk_size}"
@@ -119,13 +115,13 @@ def chunked(items, size):
 def run_profile(fn):
     import mlx.core as mx
 
-    mx.reset_peak_memory()
+    mx.metal.reset_peak_memory()
     sync()
     started = time.perf_counter()
     output = fn()
     sync()
     elapsed = time.perf_counter() - started
-    return output, elapsed, mx.get_peak_memory()
+    return output, elapsed, mx.metal.get_peak_memory()
 
 
 def profile(method_name, fn):
@@ -187,7 +183,9 @@ def set_memory_axis_limits(axis, memory_values: list[float]):
     axis.set_ylim(top=upper)
 
 
-def plot_profile(output_dir: Path, profile_name: str, x_key: str, x_label: str, totals: list[dict]):
+def plot_profile(
+    output_dir: Path, profile_name: str, x_key: str, x_label: str, totals: list[dict]
+):
     if not totals:
         return None
 
@@ -283,9 +281,7 @@ def run_translate_profile(chunk_sizes):
 
         print({"chunk_size": chunk_size, "method": "translate"})
         if inputs:
-            warmup(
-                lambda source_text=inputs[0]["source_text"]: translate(source_text)
-            )
+            warmup(lambda source_text=inputs[0]["source_text"]: translate(source_text))
         for item in inputs:
             result = profile(
                 "translate",
@@ -352,9 +348,9 @@ def run_batch_profile(batch_sizes, chunk_size):
         for batch in chunked(inputs, batch_size):
             result = profile(
                 "translate_batch",
-                lambda batch_texts=[item["source_text"] for item in batch]: translate_batch(
-                    batch_texts
-                ),
+                lambda batch_texts=[
+                    item["source_text"] for item in batch
+                ]: translate_batch(batch_texts),
             )
             total["elapsed"] += result["elapsed"]
             total["peak_metal_mb"] = max(
@@ -417,9 +413,8 @@ def run_speculative_profile(num_draft_tokens_values, chunk_size):
         )
         if inputs:
             warmup(
-                lambda source_text=speculative_input[0][
-                    "source_text"
-                ], num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
+                lambda source_text=speculative_input[0]["source_text"],
+                num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
                     source_text,
                     num_draft_tokens=num_draft_tokens,
                 )
@@ -427,9 +422,8 @@ def run_speculative_profile(num_draft_tokens_values, chunk_size):
         for item in speculative_input:
             result = profile(
                 "translate_speculative_decoding",
-                lambda source_text=item[
-                    "source_text"
-                ], num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
+                lambda source_text=item["source_text"],
+                num_draft_tokens=num_draft_tokens: translate_speculative_decoding(
                     source_text,
                     num_draft_tokens=num_draft_tokens,
                 ),
@@ -503,9 +497,7 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
     print({"chunk_size": chunk_size, "method": "translate"})
     if compare_inputs:
         warmup(
-            lambda source_text=compare_inputs[0]["source_text"]: translate(
-                source_text
-            )
+            lambda source_text=compare_inputs[0]["source_text"]: translate(source_text)
         )
     for item in compare_inputs:
         result = profile(
@@ -624,9 +616,7 @@ def run_compare_profile(chunk_size, batch_size, num_draft_tokens):
     for item in compare_inputs:
         result = profile(
             "translate_speculative_decoding",
-            lambda source_text=item[
-                "source_text"
-            ]: translate_speculative_decoding(
+            lambda source_text=item["source_text"]: translate_speculative_decoding(
                 source_text,
                 num_draft_tokens=num_draft_tokens,
             ),
